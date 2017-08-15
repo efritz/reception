@@ -25,10 +25,6 @@ type (
 		stop   chan struct{}
 	}
 
-	//
-	// TODO - simplify, make shim
-	//
-
 	zkConn interface {
 		Create(path string, data []byte) error
 		CreateEphemeral(path string, data []byte) error
