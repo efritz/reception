@@ -1,14 +1,13 @@
 package reception
 
 import (
-	"testing"
-
+	"github.com/aphistic/sweet"
 	. "github.com/onsi/gomega"
 )
 
 type ElectionSuite struct{}
 
-func (s *ElectionSuite) TestElect(t *testing.T) {
+func (s *ElectionSuite) TestElect(t sweet.T) {
 	var (
 		client            = newMockClient()
 		watcher           = newMockWatcher()
@@ -63,7 +62,7 @@ func (s *ElectionSuite) TestElect(t *testing.T) {
 	})))
 }
 
-func (s *ElectionSuite) TestCancel(t *testing.T) {
+func (s *ElectionSuite) TestCancel(t sweet.T) {
 	var (
 		client     = newMockClient()
 		watcher    = newMockWatcher()

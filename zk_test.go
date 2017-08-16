@@ -1,8 +1,7 @@
 package reception
 
 import (
-	"testing"
-
+	"github.com/aphistic/sweet"
 	"github.com/samuel/go-zookeeper/zk"
 
 	. "github.com/onsi/gomega"
@@ -10,7 +9,7 @@ import (
 
 type ZkSuite struct{}
 
-func (s *ZkSuite) TestRegister(t *testing.T) {
+func (s *ZkSuite) TestRegister(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
 		client        = newZkClient("prefix", conn)
@@ -45,7 +44,7 @@ func (s *ZkSuite) TestRegister(t *testing.T) {
 	Expect(ephemeralData).To(MatchJSON(`{"foo": "bar", "baz": "bonk"}`))
 }
 
-func (s *ZkSuite) TestRegisterError(t *testing.T) {
+func (s *ZkSuite) TestRegisterError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
 		client = newZkClient("prefix", conn)
@@ -67,7 +66,7 @@ func (s *ZkSuite) TestRegisterError(t *testing.T) {
 	Expect(err).To(Equal(zk.ErrUnknown))
 }
 
-func (s *ZkSuite) TestListServices(t *testing.T) {
+func (s *ZkSuite) TestListServices(t sweet.T) {
 	var (
 		conn       = NewMockZkConn()
 		client     = newZkClient("prefix", conn)
@@ -108,7 +107,7 @@ func (s *ZkSuite) TestListServices(t *testing.T) {
 	Expect(calledPath).To(Equal("/prefix/service"))
 }
 
-func (s *ZkSuite) TestListServicesGetRace(t *testing.T) {
+func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
 		client        = newZkClient("prefix", conn)
@@ -164,7 +163,7 @@ func (s *ZkSuite) TestListServicesGetRace(t *testing.T) {
 	Expect(getCalls).To(Equal(6))
 }
 
-func (s *ZkSuite) TestListServicesError(t *testing.T) {
+func (s *ZkSuite) TestListServicesError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
 		client = newZkClient("prefix", conn)
@@ -187,7 +186,7 @@ func (s *ZkSuite) TestListServicesError(t *testing.T) {
 	Expect(err).To(Equal(zk.ErrUnknown))
 }
 
-func (s *ZkSuite) TestWatcher(t *testing.T) {
+func (s *ZkSuite) TestWatcher(t sweet.T) {
 	var (
 		conn         = NewMockZkConn()
 		client       = newZkClient("prefix", conn)
@@ -249,7 +248,7 @@ func (s *ZkSuite) TestWatcher(t *testing.T) {
 	Expect(calledPath).To(Equal("/prefix/service"))
 }
 
-func (s *ZkSuite) TestWatcherGetRace(t *testing.T) {
+func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
 		client        = newZkClient("prefix", conn)
@@ -304,7 +303,7 @@ func (s *ZkSuite) TestWatcherGetRace(t *testing.T) {
 	Expect(getCalls).To(Equal(5))
 }
 
-func (s *ZkSuite) TestCreatePathSimple(t *testing.T) {
+func (s *ZkSuite) TestCreatePathSimple(t sweet.T) {
 	var (
 		conn  = NewMockZkConn()
 		paths = []string{}
@@ -321,7 +320,7 @@ func (s *ZkSuite) TestCreatePathSimple(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestCreatePathMultiple(t *testing.T) {
+func (s *ZkSuite) TestCreatePathMultiple(t sweet.T) {
 	var (
 		conn  = NewMockZkConn()
 		paths = []string{}
@@ -340,7 +339,7 @@ func (s *ZkSuite) TestCreatePathMultiple(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestCreatePathError(t *testing.T) {
+func (s *ZkSuite) TestCreatePathError(t sweet.T) {
 	var (
 		conn  = NewMockZkConn()
 		paths = []string{}
@@ -362,7 +361,7 @@ func (s *ZkSuite) TestCreatePathError(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestCreatePathPartiallyExists(t *testing.T) {
+func (s *ZkSuite) TestCreatePathPartiallyExists(t sweet.T) {
 	var (
 		conn  = NewMockZkConn()
 		paths = []string{}
@@ -385,7 +384,7 @@ func (s *ZkSuite) TestCreatePathPartiallyExists(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServices(t *testing.T) {
+func (s *ZkSuite) TestReadServices(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -416,7 +415,7 @@ func (s *ZkSuite) TestReadServices(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesNonconformingNodePath(t *testing.T) {
+func (s *ZkSuite) TestReadServicesNonconformingNodePath(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -445,7 +444,7 @@ func (s *ZkSuite) TestReadServicesNonconformingNodePath(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t *testing.T) {
+func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -474,7 +473,7 @@ func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t *testing.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesError(t *testing.T) {
+func (s *ZkSuite) TestReadServicesError(t sweet.T) {
 	conn := NewMockZkConn()
 	conn.get = func(path string) ([]byte, error) {
 		return nil, zk.ErrUnknown
@@ -490,7 +489,7 @@ func (s *ZkSuite) TestReadServicesError(t *testing.T) {
 	Expect(err).To(Equal(zk.ErrUnknown))
 }
 
-func (s *ZkSuite) TestMakePath(t *testing.T) {
+func (s *ZkSuite) TestMakePath(t sweet.T) {
 	Expect(makePath()).To(Equal("/"))
 	Expect(makePath("foo")).To(Equal("/foo"))
 	Expect(makePath("foo", "bar", "baz")).To(Equal("/foo/bar/baz"))
