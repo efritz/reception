@@ -384,7 +384,7 @@ func (s *ZkSuite) TestCreatePathPartiallyExists(t sweet.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServices(t sweet.T) {
+func (s *ZkSuite) TestReadZkServices(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -399,7 +399,7 @@ func (s *ZkSuite) TestReadServices(t sweet.T) {
 		return data[path], nil
 	}
 
-	services, err := readServices(conn, "prefix", "service", []string{
+	services, err := readZkServices(conn, "prefix", "service", []string{
 		"_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002",
 		"_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123",
 		"_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000",
@@ -415,7 +415,7 @@ func (s *ZkSuite) TestReadServices(t sweet.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesNonconformingNodePath(t sweet.T) {
+func (s *ZkSuite) TestReadZkServicesNonconformingNodePath(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -430,7 +430,7 @@ func (s *ZkSuite) TestReadServicesNonconformingNodePath(t sweet.T) {
 		return data[path], nil
 	}
 
-	services, err := readServices(conn, "prefix", "service", []string{
+	services, err := readZkServices(conn, "prefix", "service", []string{
 		"_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002",
 		"_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123",
 		"_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000",
@@ -444,7 +444,7 @@ func (s *ZkSuite) TestReadServicesNonconformingNodePath(t sweet.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t sweet.T) {
+func (s *ZkSuite) TestReadZkServicesNonconformingNodeJSON(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
@@ -459,7 +459,7 @@ func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t sweet.T) {
 		return data[path], nil
 	}
 
-	services, err := readServices(conn, "prefix", "service", []string{
+	services, err := readZkServices(conn, "prefix", "service", []string{
 		"_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002",
 		"_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123",
 		"_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000",
@@ -473,13 +473,13 @@ func (s *ZkSuite) TestReadServicesNonconformingNodeJSON(t sweet.T) {
 	}))
 }
 
-func (s *ZkSuite) TestReadServicesError(t sweet.T) {
+func (s *ZkSuite) TestReadZkServicesError(t sweet.T) {
 	conn := NewMockZkConn()
 	conn.get = func(path string) ([]byte, error) {
 		return nil, zk.ErrUnknown
 	}
 
-	_, err := readServices(conn, "prefix", "service", []string{
+	_, err := readZkServices(conn, "prefix", "service", []string{
 		"_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002",
 		"_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123",
 		"_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000",
@@ -487,13 +487,6 @@ func (s *ZkSuite) TestReadServicesError(t sweet.T) {
 	})
 
 	Expect(err).To(Equal(zk.ErrUnknown))
-}
-
-func (s *ZkSuite) TestMakePath(t sweet.T) {
-	Expect(makePath()).To(Equal("/"))
-	Expect(makePath("foo")).To(Equal("/foo"))
-	Expect(makePath("foo", "bar", "baz")).To(Equal("/foo/bar/baz"))
-	Expect(makePath("/foo/", "/bar/", "/baz/")).To(Equal("/foo/bar/baz"))
 }
 
 //

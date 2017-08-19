@@ -1,10 +1,8 @@
 package reception
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -68,12 +66,9 @@ func (c *zkClient) Register(service *Service) error {
 		return err
 	}
 
-	// Marshal map[string]string cannot fail
-	data, _ := json.Marshal(service.Metadata)
-
 	return c.conn.CreateEphemeral(
 		makePath(c.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
-		data,
+		service.SerializedMetadata(),
 	)
 }
 
@@ -84,7 +79,7 @@ func (c *zkClient) ListServices(name string) ([]*Service, error) {
 			return nil, err
 		}
 
-		services, err := readServices(c.conn, c.prefix, name, paths)
+		services, err := readZkServices(c.conn, c.prefix, name, paths)
 		if err == zk.ErrNoNode {
 			continue
 		}
@@ -122,7 +117,7 @@ func (w *zkWatcher) Start() (<-chan []*Service, error) {
 				return
 			}
 
-			services, err := readServices(w.conn, w.prefix, w.name, paths)
+			services, err := readZkServices(w.conn, w.prefix, w.name, paths)
 			if err == zk.ErrNoNode {
 				continue
 			}
@@ -179,6 +174,9 @@ func (s *zkShim) Children(path string) ([]string, error) {
 
 func (s *zkShim) ChildrenW(path string) ([]string, <-chan struct{}, error) {
 	data, _, events, err := s.conn.ChildrenW(path)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	ch := make(chan struct{})
 
@@ -187,7 +185,7 @@ func (s *zkShim) ChildrenW(path string) ([]string, <-chan struct{}, error) {
 		close(ch)
 	}()
 
-	return data, ch, err
+	return data, ch, nil
 }
 
 //
@@ -206,7 +204,7 @@ func createPath(conn zkConn, path string) error {
 	return nil
 }
 
-func readServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
+func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
 	serviceMap := map[int]*Service{}
 
 	for _, path := range paths {
@@ -226,8 +224,8 @@ func readServices(conn zkConn, prefix, name string, paths []string) ([]*Service,
 			return nil, err
 		}
 
-		metadata := Metadata{}
-		if err := json.Unmarshal(data, &metadata); err != nil {
+		metadata, ok := parseMetadata(data)
+		if !ok {
 			continue
 		}
 
@@ -239,28 +237,4 @@ func readServices(conn zkConn, prefix, name string, paths []string) ([]*Service,
 	}
 
 	return sortServiceMap(serviceMap), nil
-}
-
-func sortServiceMap(serviceMap map[int]*Service) []*Service {
-	sequences := []int{}
-	for k := range serviceMap {
-		sequences = append(sequences, k)
-	}
-
-	sort.Ints(sequences)
-
-	services := []*Service{}
-	for _, sequenceNumber := range sequences {
-		services = append(services, serviceMap[sequenceNumber])
-	}
-
-	return services
-}
-
-func makePath(parts ...string) string {
-	for i := 0; i < len(parts); i++ {
-		parts[i] = strings.Trim(parts[i], "/")
-	}
-
-	return "/" + strings.Join(parts, "/")
 }

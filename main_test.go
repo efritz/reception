@@ -16,5 +16,6 @@ func TestMain(m *testing.M) {
 
 		s.AddSuite(&ElectionSuite{})
 		s.AddSuite(&ZkSuite{})
+		s.AddSuite(&UtilSuite{})
 	})
 }
