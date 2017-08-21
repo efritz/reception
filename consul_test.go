@@ -200,25 +200,25 @@ func (s *ConsulSuite) TestWatcher(t sweet.T) {
 
 	childrenChan <- children[:1]
 	Eventually(indices).Should(Receive(Equal(uint64(0))))
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
-	})))
+	}})))
 
 	childrenChan <- children[:2]
 	Eventually(indices).Should(Receive(Equal(uint64(1))))
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
-	})))
+	}})))
 
 	childrenChan <- children[:4]
 	Eventually(indices).Should(Receive(Equal(uint64(2))))
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
 		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
-	})))
+	}})))
 
 	watcher.Stop()
 	Eventually(ch).Should(BeClosed())

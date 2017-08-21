@@ -12,20 +12,20 @@ import (
 type UtilSuite struct{}
 
 func (s *UtilSuite) TestWithContextSuccess(t sweet.T) {
-	ok, err := withContext(make(chan struct{}), func(ctx context.Context) error {
+	again, err := withContext(make(chan struct{}), func(ctx context.Context) error {
 		return nil
 	})
 
-	Expect(ok).To(BeTrue())
+	Expect(again).To(BeTrue())
 	Expect(err).To(BeNil())
 }
 
 func (s *UtilSuite) TestWithContextError(t sweet.T) {
-	ok, err := withContext(make(chan struct{}), func(ctx context.Context) error {
+	again, err := withContext(make(chan struct{}), func(ctx context.Context) error {
 		return errors.New("foobar")
 	})
 
-	Expect(ok).To(BeTrue())
+	Expect(again).To(BeTrue())
 	Expect(err).To(MatchError("foobar"))
 }
 
@@ -38,12 +38,12 @@ func (s *UtilSuite) TestWithContextCanceled(t sweet.T) {
 	go func() {
 		defer close(result)
 
-		ok, _ := withContext(stop, func(ctx context.Context) error {
+		again, _ := withContext(stop, func(ctx context.Context) error {
 			<-ctx.Done()
 			return nil
 		})
 
-		result <- ok
+		result <- again
 	}()
 
 	Consistently(result).ShouldNot(Receive())
@@ -89,6 +89,25 @@ func (s *UtilSuite) TestIsCanceled(t sweet.T) {
 	Consistently(isCanceled(ctx)).Should(BeFalse())
 	cancel()
 	Consistently(isCanceled(ctx)).Should(BeTrue())
+}
+
+func (s *UtilSuite) TestSendOrStop(t sweet.T) {
+	var (
+		ch    = make(chan *ServiceState, 1)
+		stop  = make(chan struct{})
+		err   = errors.New("test")
+		state *ServiceState
+	)
+
+	defer close(ch)
+
+	Expect(sendOrStop(ch, stop, &ServiceState{Err: err})).To(BeTrue())
+	Expect(ch).To(Receive(&state))
+	Expect(state.Err).To(MatchError("test"))
+
+	close(stop)
+	Expect(sendOrStop(ch, stop, &ServiceState{Err: err})).To(BeFalse())
+	Expect(ch).NotTo(Receive())
 }
 
 func (s *UtilSuite) TestMakePath(t sweet.T) {

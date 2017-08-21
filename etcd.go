@@ -114,6 +114,7 @@ func (c *etcdClient) Register(service *Service) error {
 			<-c.config.clock.After(c.config.refreshInterval)
 
 			if err := c.api.Set(path, "", tickOpts); err != nil {
+				// TODO - inform of 'disconnect'
 				fmt.Printf("Whoops: %#v\n", err.Error())
 				return
 			}
@@ -141,22 +142,27 @@ func (c *etcdClient) NewWatcher(name string) Watcher {
 	}
 }
 
-func (w *etcdWatcher) Start() (<-chan []*Service, error) {
-	ch := make(chan []*Service)
+func (w *etcdWatcher) Start() (<-chan *ServiceState, error) {
+	ch := make(chan *ServiceState)
 
 	go func() {
 		defer close(ch)
 
-		for range makeEtcdEventChannel(w.api, makePath(w.prefix, w.name), w.stop) {
-			resp, err := w.api.Get(makePath(w.prefix, w.name))
+		for err := range makeEtcdEventChannel(w.api, makePath(w.prefix, w.name), w.stop) {
 			if err != nil {
-				fmt.Printf("Whoops: %#v\n", err.Error())
+				sendOrStop(ch, w.stop, &ServiceState{Err: err})
 				return
 			}
 
-			select {
-			case ch <- mapEtcdServices(resp, w.name):
-			case <-w.stop:
+			resp, err := w.api.Get(makePath(w.prefix, w.name))
+			if err != nil {
+				sendOrStop(ch, w.stop, &ServiceState{Err: err})
+				return
+			}
+
+			services := mapEtcdServices(resp, w.name)
+
+			if !sendOrStop(ch, w.stop, &ServiceState{Services: services}) {
 				return
 			}
 		}
@@ -196,19 +202,19 @@ func isNodeExists(err error) bool {
 	return false
 }
 
-func makeEtcdEventChannel(api keysAPI, path string, stop <-chan struct{}) <-chan struct{} {
+func makeEtcdEventChannel(api keysAPI, path string, stop <-chan struct{}) <-chan error {
 	var (
-		ch      = make(chan struct{})
+		ch      = make(chan error)
 		watcher = api.Watcher(path)
 	)
 
 	go func() {
 		defer close(ch)
 
-		ch <- struct{}{}
+		ch <- nil
 
 		for {
-			ok, err := withContext(stop, func(ctx context.Context) error {
+			again, err := withContext(stop, func(ctx context.Context) error {
 				if _, err := watcher.Next(ctx); err != nil {
 					return err
 				}
@@ -217,15 +223,15 @@ func makeEtcdEventChannel(api keysAPI, path string, stop <-chan struct{}) <-chan
 			})
 
 			if err != nil {
-				fmt.Printf("Whoops: %#v\n", err.Error())
+				ch <- err
 				return
 			}
 
-			if !ok {
+			if !again {
 				return
 			}
 
-			ch <- struct{}{}
+			ch <- nil
 		}
 	}()
 

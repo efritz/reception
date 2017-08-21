@@ -110,8 +110,8 @@ func (c *zkClient) NewWatcher(name string) Watcher {
 	}
 }
 
-func (w *zkWatcher) Start() (<-chan []*Service, error) {
-	ch := make(chan []*Service)
+func (w *zkWatcher) Start() (<-chan *ServiceState, error) {
+	ch := make(chan *ServiceState)
 
 	go func() {
 		defer close(ch)
@@ -119,7 +119,7 @@ func (w *zkWatcher) Start() (<-chan []*Service, error) {
 		for {
 			paths, watch, err := w.conn.ChildrenW(makePath(w.prefix, w.name))
 			if err != nil {
-				fmt.Printf("Whoops: %#v\n", err.Error())
+				sendOrStop(ch, w.stop, &ServiceState{Err: err})
 				return
 			}
 
@@ -129,13 +129,11 @@ func (w *zkWatcher) Start() (<-chan []*Service, error) {
 			}
 
 			if err != nil {
-				fmt.Printf("Whoops: %#v\n", err.Error())
+				sendOrStop(ch, w.stop, &ServiceState{Err: err})
 				return
 			}
 
-			select {
-			case ch <- services:
-			case <-w.stop:
+			if !sendOrStop(ch, w.stop, &ServiceState{Services: services}) {
 				return
 			}
 

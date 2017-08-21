@@ -12,7 +12,7 @@ type (
 	}
 
 	Watcher interface {
-		Start() (<-chan []*Service, error)
+		Start() (<-chan *ServiceState, error)
 		Stop()
 	}
 
@@ -22,6 +22,11 @@ type (
 		Address    string     `json:"address"`
 		Port       int        `json:"port"`
 		Attributes Attributes `json:"attributes"`
+	}
+
+	ServiceState struct {
+		Services []*Service
+		Err      error
 	}
 
 	Attributes map[string]string

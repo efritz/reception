@@ -56,8 +56,12 @@ loop:
 		case <-e.stop:
 			return ErrElectionCanceled
 
-		case services := <-ch:
-			if len(services) > 0 && services[0].ID == service.ID {
+		case state := <-ch:
+			if state.Err != nil {
+				return state.Err
+			}
+
+			if len(state.Services) > 0 && state.Services[0].ID == service.ID {
 				break loop
 			}
 		}

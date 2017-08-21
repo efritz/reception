@@ -140,49 +140,40 @@ func (c *consulClient) NewWatcher(name string) Watcher {
 	}
 }
 
-func (w *consulWatcher) Start() (<-chan []*Service, error) {
-	ch := make(chan []*Service)
+func (w *consulWatcher) Start() (<-chan *ServiceState, error) {
+	ch := make(chan *ServiceState)
 
 	go func() {
 		defer close(ch)
 
 		for {
-			services, updated, ok := w.update()
-			if !ok {
+			var (
+				lastIndex = w.index
+				services  []*consul.CatalogService
+				err       error
+			)
+
+			again, err := withContext(w.stop, func(ctx context.Context) error {
+				services, w.index, err = w.api.Watch(w.name, w.index, ctx)
+				return err
+			})
+
+			if err != nil {
+				sendOrStop(ch, w.stop, &ServiceState{Err: err})
 				return
 			}
 
-			if updated {
-				ch <- services
+			if !again {
+				return
+			}
+
+			if w.index != lastIndex && !sendOrStop(ch, w.stop, &ServiceState{Services: mapConsulServices(services, w.name)}) {
+				return
 			}
 		}
 	}()
 
 	return ch, nil
-}
-
-func (w *consulWatcher) update() ([]*Service, bool, bool) {
-	var (
-		lastIndex = w.index
-		services  []*consul.CatalogService
-		err       error
-	)
-
-	ok, err := withContext(w.stop, func(ctx context.Context) error {
-		services, w.index, err = w.api.Watch(w.name, w.index, ctx)
-		return err
-	})
-
-	if err != nil {
-		fmt.Printf("Whoops: %#v\n", err.Error())
-		return nil, false, false
-	}
-
-	if !ok {
-		return nil, false, false
-	}
-
-	return mapConsulServices(services, w.name), w.index != lastIndex, true
 }
 
 func (w *consulWatcher) Stop() {

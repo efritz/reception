@@ -42,6 +42,22 @@ func isCanceled(ctx context.Context) bool {
 	return false
 }
 
+func sendOrStop(ch chan<- *ServiceState, stop <-chan struct{}, state *ServiceState) bool {
+	select {
+	case <-stop:
+		return false
+	default:
+	}
+
+	select {
+	case ch <- state:
+		return true
+
+	case <-stop:
+		return false
+	}
+}
+
 func makePath(parts ...string) string {
 	sanitized := []string{}
 	for i := 0; i < len(parts); i++ {

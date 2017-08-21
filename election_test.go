@@ -11,7 +11,7 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 	var (
 		client            = newMockClient()
 		watcher           = newMockWatcher()
-		serviceChan       = make(chan []*Service)
+		serviceChan       = make(chan *ServiceState)
 		errChan           = make(chan error)
 		registeredService *Service
 		stopCalled        = false
@@ -32,7 +32,7 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 		return watcher
 	}
 
-	watcher.start = func() (<-chan []*Service, error) {
+	watcher.start = func() (<-chan *ServiceState, error) {
 		return serviceChan, nil
 	}
 
@@ -44,13 +44,13 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 		errChan <- elector.Elect()
 	}()
 
-	serviceChan <- []*Service{}
+	serviceChan <- &ServiceState{}
 	Consistently(errChan).ShouldNot(Receive())
 
-	serviceChan <- []*Service{&Service{ID: "wrong id"}}
+	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: "wrong id"}}}
 	Consistently(errChan).ShouldNot(Receive())
 
-	serviceChan <- []*Service{&Service{ID: registeredService.ID}}
+	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: registeredService.ID}}}
 	Eventually(errChan).Should(Receive(BeNil()))
 
 	Expect(stopCalled).To(BeTrue())
@@ -76,8 +76,8 @@ func (s *ElectionSuite) TestCancel(t sweet.T) {
 		return watcher
 	}
 
-	watcher.start = func() (<-chan []*Service, error) {
-		return make(chan []*Service), nil
+	watcher.start = func() (<-chan *ServiceState, error) {
+		return make(chan *ServiceState), nil
 	}
 
 	watcher.stop = func() {
@@ -116,16 +116,16 @@ func (c *mockClient) ListServices(name string) ([]*Service, error) { return c.li
 func (c *mockClient) NewWatcher(name string) Watcher               { return c.newWatcher(name) }
 
 type mockWatcher struct {
-	start func() (<-chan []*Service, error)
+	start func() (<-chan *ServiceState, error)
 	stop  func()
 }
 
 func newMockWatcher() *mockWatcher {
 	return &mockWatcher{
-		start: func() (<-chan []*Service, error) { return nil, nil },
+		start: func() (<-chan *ServiceState, error) { return nil, nil },
 		stop:  func() {},
 	}
 }
 
-func (w *mockWatcher) Start() (<-chan []*Service, error) { return w.start() }
-func (w *mockWatcher) Stop()                             { w.stop() }
+func (w *mockWatcher) Start() (<-chan *ServiceState, error) { return w.start() }
+func (w *mockWatcher) Stop()                                { w.stop() }

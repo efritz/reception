@@ -236,23 +236,23 @@ func (s *ZkSuite) TestWatcher(t sweet.T) {
 	ch, err := watcher.Start()
 	Expect(err).To(BeNil())
 
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
-	})))
+	}})))
 
 	update <- struct{}{}
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
-	})))
+	}})))
 
 	update <- struct{}{}
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
 		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
-	})))
+	}})))
 
 	watcher.Stop()
 	Eventually(ch).Should(BeClosed())
@@ -301,10 +301,10 @@ func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	ch, err := watcher.Start()
 	Expect(err).To(BeNil())
 
-	Eventually(ch).Should(Receive(Equal([]*Service{
+	Eventually(ch).Should(Receive(Equal(&ServiceState{Services: []*Service{
 		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
-	})))
+	}})))
 
 	Consistently(ch).ShouldNot(Receive())
 	watcher.Stop()
