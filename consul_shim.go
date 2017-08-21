@@ -19,7 +19,6 @@ type (
 )
 
 func (c *consulShim) Register(registration *consul.AgentServiceRegistration) error {
-	// TODO - make this a little more verbose?
 	return c.agent.ServiceRegister(registration)
 }
 

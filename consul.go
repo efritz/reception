@@ -147,23 +147,25 @@ func (w *consulWatcher) Start() (<-chan []*Service, error) {
 		defer close(ch)
 
 		for {
-			services, ok := w.update()
+			services, updated, ok := w.update()
 			if !ok {
 				return
 			}
 
-			// TODO - ignore if same
-			ch <- services
+			if updated {
+				ch <- services
+			}
 		}
 	}()
 
 	return ch, nil
 }
 
-func (w *consulWatcher) update() ([]*Service, bool) {
+func (w *consulWatcher) update() ([]*Service, bool, bool) {
 	var (
-		services []*consul.CatalogService
-		err      error
+		lastIndex = w.index
+		services  []*consul.CatalogService
+		err       error
 	)
 
 	ok, err := withContext(w.stop, func(ctx context.Context) error {
@@ -173,14 +175,14 @@ func (w *consulWatcher) update() ([]*Service, bool) {
 
 	if err != nil {
 		fmt.Printf("Whoops: %#v\n", err.Error())
-		return nil, false
+		return nil, false, false
 	}
 
 	if !ok {
-		return nil, false
+		return nil, false, false
 	}
 
-	return mapConsulServices(services, w.name), true
+	return mapConsulServices(services, w.name), w.index != lastIndex, true
 }
 
 func (w *consulWatcher) Stop() {

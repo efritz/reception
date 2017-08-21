@@ -224,6 +224,41 @@ func (s *ConsulSuite) TestWatcher(t sweet.T) {
 	Eventually(ch).Should(BeClosed())
 }
 
+func (s *ConsulSuite) TestWatcherNoUpdates(t sweet.T) {
+	var (
+		api          = newMockConsulAPI()
+		client       = newConsulClient(api)
+		watcher      = client.NewWatcher("service")
+		childrenChan = make(chan []*consul.CatalogService)
+		children     = []*consul.CatalogService{
+			&consul.CatalogService{ServiceID: "node-a", ServiceAddress: "localhost", ServicePort: 5001, ServiceTags: []string{`{"foo": "a"}`}, CreateIndex: 1},
+		}
+	)
+
+	defer close(childrenChan)
+
+	api.watch = func(name string, index uint64, ctx context.Context) ([]*consul.CatalogService, uint64, error) {
+		select {
+		case <-ctx.Done():
+			return nil, 0, errors.New("Canceled")
+
+		case c := <-childrenChan:
+			return c, index, nil
+		}
+	}
+
+	ch, err := watcher.Start()
+	Expect(err).To(BeNil())
+
+	for i := 0; i < 5; i++ {
+		childrenChan <- children
+		Eventually(ch).ShouldNot(Receive())
+	}
+
+	watcher.Stop()
+	Eventually(ch).Should(BeClosed())
+}
+
 func (s *ConsulSuite) TestMapConsulServices(t sweet.T) {
 	serviceList := []*consul.CatalogService{
 		&consul.CatalogService{ServiceID: "a", ServiceAddress: "localhost", ServicePort: 5001, ServiceTags: []string{`{"name": "a"}`}, CreateIndex: 3},
