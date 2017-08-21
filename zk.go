@@ -53,7 +53,7 @@ func (c *zkClient) Register(service *Service) error {
 
 	return c.conn.CreateEphemeral(
 		makePath(c.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
-		service.SerializeMetadata(),
+		service.serializeMetadata(),
 	)
 }
 

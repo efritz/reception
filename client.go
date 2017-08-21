@@ -27,12 +27,12 @@ type (
 	Attributes map[string]string
 )
 
-func (s *Service) SerializeMetadata() []byte {
+func (s *Service) serializeMetadata() []byte {
 	data, _ := json.Marshal(s)
 	return data
 }
 
-func (s *Service) SerializeAttributes() []byte {
+func (s *Service) serializeAttributes() []byte {
 	data, _ := json.Marshal(s.Attributes)
 	return data
 }

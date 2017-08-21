@@ -70,7 +70,7 @@ func (c *consulClient) Register(service *Service) error {
 		Name:    service.Name,
 		Address: service.Address,
 		Port:    service.Port,
-		Tags:    []string{string(service.SerializeAttributes())},
+		Tags:    []string{string(service.serializeAttributes())},
 		// TODO - make configurable
 		Check: &consul.AgentServiceCheck{
 			HTTP:     endpoint,

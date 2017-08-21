@@ -17,7 +17,7 @@ func (s *ClientSuite) TestSerializeMetadata(t sweet.T) {
 		},
 	}
 
-	Expect(service.SerializeMetadata()).To(MatchJSON(`{
+	Expect(service.serializeMetadata()).To(MatchJSON(`{
 		"address": "localhost",
 		"port": 1234,
 		"attributes": {
@@ -37,7 +37,7 @@ func (s *ClientSuite) TestSerializeAttributes(t sweet.T) {
 		},
 	}
 
-	Expect(service.SerializeAttributes()).To(MatchJSON(`{
+	Expect(service.serializeAttributes()).To(MatchJSON(`{
 		"foo": "bar",
 		"baz": "bonk"
 	}`))

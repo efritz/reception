@@ -55,7 +55,7 @@ func (c *etcdClient) Register(service *Service) error {
 	var (
 		root = makePath(c.prefix, service.Name)
 		path = makePath(c.prefix, service.Name, service.ID)
-		data = string(service.SerializeMetadata())
+		data = string(service.serializeMetadata())
 
 		// TODO - make configurable
 		ttl      = time.Second * 5
