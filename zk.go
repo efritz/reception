@@ -39,7 +39,11 @@ func DialZk(addr, prefix string) (Client, error) {
 		return nil, err
 	}
 
-	return newZkClient(prefix, &zkShim{conn}), nil
+	shim := &zkShim{
+		conn: conn,
+	}
+
+	return newZkClient(prefix, shim), nil
 }
 
 func newZkClient(prefix string, conn zkConn) Client {

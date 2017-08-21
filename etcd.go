@@ -35,11 +35,11 @@ func DialEtcd(addr, prefix string) (Client, error) {
 		return nil, err
 	}
 
-	return newEtcdClient(
-		prefix,
-		&etcdShim{etcd.NewKeysAPI(client)},
-		glock.NewRealClock(),
-	), nil
+	shim := &etcdShim{
+		api: etcd.NewKeysAPI(client),
+	}
+
+	return newEtcdClient(prefix, shim, glock.NewRealClock()), nil
 
 }
 
