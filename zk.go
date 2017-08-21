@@ -33,7 +33,7 @@ var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
 // TODO - exhibitor utilities
 
 func DialZk(addr, prefix string) (Client, error) {
-	// TODO - way to flag disconnecte
+	// TODO - way to flag disconnects
 	conn, _, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
 		return nil, err
@@ -126,9 +126,8 @@ func (w *zkWatcher) Start() (<-chan []*Service, error) {
 	return ch, nil
 }
 
-func (w *zkWatcher) Stop() error {
+func (w *zkWatcher) Stop() {
 	close(w.stop)
-	return nil
 }
 
 //
@@ -169,8 +168,7 @@ func extractZkMeta(path string) (string, int, bool) {
 	// Get text between _c_.{32}- and version
 	id := path[36 : len(path)-11]
 
-	// Get version (last 10 digits) and convert - this can't
-	// fail due as these are ensured to be digits via regex.
+	// Get version (last 10 digits) and convert
 	sequenceNumber, _ := strconv.Atoi(path[len(path)-10:])
 
 	return id, sequenceNumber, true

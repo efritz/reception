@@ -134,9 +134,8 @@ func (w *etcdWatcher) Start() (<-chan []*Service, error) {
 	return ch, nil
 }
 
-func (w *etcdWatcher) Stop() error {
+func (w *etcdWatcher) Stop() {
 	close(w.stop)
-	return nil
 }
 
 //

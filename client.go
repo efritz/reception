@@ -13,7 +13,7 @@ type (
 
 	Watcher interface {
 		Start() (<-chan []*Service, error)
-		Stop() error
+		Stop()
 	}
 
 	Service struct {

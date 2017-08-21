@@ -36,9 +36,8 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 		return serviceChan, nil
 	}
 
-	watcher.stop = func() error {
+	watcher.stop = func() {
 		stopCalled = true
-		return nil
 	}
 
 	go func() {
@@ -81,9 +80,8 @@ func (s *ElectionSuite) TestCancel(t sweet.T) {
 		return make(chan []*Service), nil
 	}
 
-	watcher.stop = func() error {
+	watcher.stop = func() {
 		stopCalled = true
-		return nil
 	}
 
 	go func() {
@@ -119,15 +117,15 @@ func (c *mockClient) NewWatcher(name string) Watcher               { return c.ne
 
 type mockWatcher struct {
 	start func() (<-chan []*Service, error)
-	stop  func() error
+	stop  func()
 }
 
 func newMockWatcher() *mockWatcher {
 	return &mockWatcher{
 		start: func() (<-chan []*Service, error) { return nil, nil },
-		stop:  func() error { return nil },
+		stop:  func() {},
 	}
 }
 
 func (w *mockWatcher) Start() (<-chan []*Service, error) { return w.start() }
-func (w *mockWatcher) Stop() error                       { return w.stop() }
+func (w *mockWatcher) Stop()                             { w.stop() }

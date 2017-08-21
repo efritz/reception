@@ -143,9 +143,8 @@ func (w *consulWatcher) update() ([]*Service, bool) {
 	return mapConsulServices(services, w.name), true
 }
 
-func (w *consulWatcher) Stop() error {
+func (w *consulWatcher) Stop() {
 	close(w.stop)
-	return nil
 }
 
 //
