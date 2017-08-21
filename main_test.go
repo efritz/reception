@@ -15,6 +15,7 @@ func TestMain(m *testing.M) {
 		s.RegisterPlugin(junit.NewPlugin())
 
 		s.AddSuite(&ClientSuite{})
+		s.AddSuite(&ConsulSuite{})
 		s.AddSuite(&EtcdSuite{})
 		s.AddSuite(&ZkSuite{})
 		s.AddSuite(&ElectionSuite{})

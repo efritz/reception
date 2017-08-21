@@ -56,7 +56,7 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 
 	Expect(stopCalled).To(BeTrue())
 	Expect(registeredService.Name).To(Equal("service"))
-	Expect(registeredService.Metadata).To(Equal(Metadata(map[string]string{
+	Expect(registeredService.Attributes).To(Equal(Attributes(map[string]string{
 		"foo": "bar",
 		"baz": "bonk",
 	})))

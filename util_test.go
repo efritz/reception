@@ -102,9 +102,9 @@ func (s *UtilSuite) TestSortServiceMap(t sweet.T) {
 	serviceMap := map[int]*Service{}
 	for i := 0; i < 1000; i++ {
 		serviceMap[i] = &Service{
-			Name:     fmt.Sprintf("Service-%d", i+1),
-			ID:       fmt.Sprintf("ID-%d", i+1),
-			Metadata: nil,
+			Name:       fmt.Sprintf("Service-%d", i+1),
+			ID:         fmt.Sprintf("ID-%d", i+1),
+			Attributes: nil,
 		}
 	}
 

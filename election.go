@@ -13,29 +13,29 @@ type (
 	}
 
 	elector struct {
-		client   Client
-		name     string
-		metadata Metadata
-		stop     chan struct{}
+		client     Client
+		name       string
+		attributes Attributes
+		stop       chan struct{}
 	}
 )
 
 var ErrElectionCanceled = errors.New("election canceled")
 
-func NewElector(client Client, name string, metadata Metadata) Elector {
+func NewElector(client Client, name string, attributes Attributes) Elector {
 	return &elector{
-		client:   client,
-		name:     name,
-		metadata: metadata,
-		stop:     make(chan struct{}),
+		client:     client,
+		name:       name,
+		attributes: attributes,
+		stop:       make(chan struct{}),
 	}
 }
 
 func (e *elector) Elect() error {
 	service := &Service{
-		ID:       uuid.NewV4().String(),
-		Name:     e.name,
-		Metadata: e.metadata,
+		ID:         uuid.NewV4().String(),
+		Name:       e.name,
+		Attributes: e.attributes,
 	}
 
 	if err := e.client.Register(service); err != nil {

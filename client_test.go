@@ -8,27 +8,45 @@ import (
 type ClientSuite struct{}
 
 func (s *ClientSuite) TestSerialize(t sweet.T) {
-	service := &Service{Metadata: map[string]string{
-		"foo": "bar",
-		"baz": "bonk",
-	}}
+	service := &Service{
+		Address: "localhost",
+		Port:    1234,
+		Attributes: map[string]string{
+			"foo": "bar",
+			"baz": "bonk",
+		},
+	}
 
-	Expect(service.SerializedMetadata()).To(MatchJSON(`{
-		"foo": "bar",
-		"baz": "bonk"
+	Expect(service.SerializeMetadata()).To(MatchJSON(`{
+		"address": "localhost",
+		"port": 1234,
+		"attributes": {
+			"foo": "bar",
+			"baz": "bonk"
+		}
 	}`))
 }
 
 func (s *ClientSuite) TestParse(t sweet.T) {
-	metadata, ok := parseMetadata([]byte(`{"foo": "bar", "baz": "bonk"}`))
-	Expect(ok).To(BeTrue())
-	Expect(metadata).To(Equal(Metadata(map[string]string{
+	payload := `{
+		"address": "localhost",
+		"port": 1234,
+		"attributes": {
+			"foo": "bar",
+			"baz": "bonk"
+		}
+	}`
+
+	service := &Service{}
+	Expect(parseMetadata(service, []byte(payload))).To(BeTrue())
+	Expect(service.Address).To(Equal("localhost"))
+	Expect(service.Port).To(Equal(1234))
+	Expect(service.Attributes).To(Equal(Attributes(map[string]string{
 		"foo": "bar",
 		"baz": "bonk",
 	})))
 }
 
 func (s *ClientSuite) TestParseError(t sweet.T) {
-	_, ok := parseMetadata([]byte(`not json`))
-	Expect(ok).To(BeFalse())
+	Expect(parseMetadata(&Service{}, []byte(`not json`))).To(BeFalse())
 }

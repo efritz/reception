@@ -17,24 +17,21 @@ type (
 	}
 
 	Service struct {
-		ID       string
-		Name     string
-		Metadata Metadata
+		ID         string     `json:"-"`
+		Name       string     `json:"-"`
+		Address    string     `json:"address"`
+		Port       int        `json:"port"`
+		Attributes Attributes `json:"attributes"`
 	}
 
-	Metadata map[string]string
+	Attributes map[string]string
 )
 
-func (s *Service) SerializedMetadata() []byte {
-	data, _ := json.Marshal(s.Metadata)
+func (s *Service) SerializeMetadata() []byte {
+	data, _ := json.Marshal(s)
 	return data
 }
 
-func parseMetadata(data []byte) (Metadata, bool) {
-	metadata := Metadata{}
-	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, false
-	}
-
-	return metadata, true
+func parseMetadata(service *Service, data []byte) bool {
+	return json.Unmarshal(data, &service) == nil
 }

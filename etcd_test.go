@@ -44,9 +44,11 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 		defer close(result)
 
 		result <- client.Register(&Service{
-			ID:   "node-a",
-			Name: "service",
-			Metadata: map[string]string{
+			ID:      "node-a",
+			Name:    "service",
+			Address: "localhost",
+			Port:    1234,
+			Attributes: map[string]string{
 				"foo": "bar",
 				"baz": "bonk",
 			},
@@ -61,8 +63,15 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 	Expect(rootCall.opts.Dir).To(BeTrue())
 
 	Expect(leafCall.path).To(Equal("/prefix/service/node-a"))
-	Expect(leafCall.value).To(MatchJSON(`{"foo": "bar", "baz": "bonk"}`))
 	Expect(leafCall.opts.TTL).To(Equal(time.Second * 5))
+	Expect(leafCall.value).To(MatchJSON(`{
+		"address": "localhost",
+		"port": 1234,
+		"attributes": {
+			"foo": "bar",
+			"baz": "bonk"
+		}
+	}`))
 
 	for i := 0; i < 5; i++ {
 		Consistently(setCalls).ShouldNot(Receive())
@@ -88,7 +97,7 @@ func (s *EtcdSuite) TestRegisterError(t sweet.T) {
 	err := client.Register(&Service{
 		ID:   "node-a",
 		Name: "service",
-		Metadata: map[string]string{
+		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
@@ -108,10 +117,10 @@ func (s *EtcdSuite) TestListServices(t sweet.T) {
 		calledPath = path
 
 		return makeResponse([]*etcd.Node{
-			&etcd.Node{Key: "node-d", Value: `{"foo": "d"}`, CreatedIndex: 4},
-			&etcd.Node{Key: "node-b", Value: `{"foo": "b"}`, CreatedIndex: 2},
-			&etcd.Node{Key: "node-a", Value: `{"foo": "a"}`, CreatedIndex: 1},
-			&etcd.Node{Key: "node-c", Value: `{"foo": "c"}`, CreatedIndex: 3},
+			&etcd.Node{Key: "node-d", Value: `{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`, CreatedIndex: 4},
+			&etcd.Node{Key: "node-b", Value: `{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`, CreatedIndex: 2},
+			&etcd.Node{Key: "node-a", Value: `{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`, CreatedIndex: 1},
+			&etcd.Node{Key: "node-c", Value: `{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`, CreatedIndex: 3},
 		}), nil
 	}
 
@@ -119,10 +128,10 @@ func (s *EtcdSuite) TestListServices(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	}))
 
 	Expect(calledPath).To(Equal("/prefix/service"))
@@ -151,10 +160,10 @@ func (s *EtcdSuite) TestWatcher(t sweet.T) {
 		update       = make(chan struct{})
 		responseChan = make(chan *etcd.Response, 3)
 		children     = []*etcd.Node{
-			&etcd.Node{Key: "node-a", Value: `{"foo": "a"}`, CreatedIndex: 1},
-			&etcd.Node{Key: "node-b", Value: `{"foo": "b"}`, CreatedIndex: 2},
-			&etcd.Node{Key: "node-c", Value: `{"foo": "c"}`, CreatedIndex: 3},
-			&etcd.Node{Key: "node-d", Value: `{"foo": "d"}`, CreatedIndex: 4},
+			&etcd.Node{Key: "node-a", Value: `{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`, CreatedIndex: 1},
+			&etcd.Node{Key: "node-b", Value: `{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`, CreatedIndex: 2},
+			&etcd.Node{Key: "node-c", Value: `{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`, CreatedIndex: 3},
+			&etcd.Node{Key: "node-d", Value: `{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`, CreatedIndex: 4},
 		}
 	)
 
@@ -186,21 +195,21 @@ func (s *EtcdSuite) TestWatcher(t sweet.T) {
 	Expect(err).To(BeNil())
 
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 	})))
 
 	update <- struct{}{}
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 	})))
 
 	update <- struct{}{}
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	})))
 
 	watcher.Stop()
@@ -209,11 +218,11 @@ func (s *EtcdSuite) TestWatcher(t sweet.T) {
 
 func (s *EtcdSuite) TestMapEtcdServices(t sweet.T) {
 	resp := makeResponse([]*etcd.Node{
-		&etcd.Node{Key: "a", Value: `{"name": "a"}`, CreatedIndex: 3},
-		&etcd.Node{Key: "b", Value: `{"name": "b"}`, CreatedIndex: 2},
-		&etcd.Node{Key: "c", Value: `{"name": "c"}`, CreatedIndex: 1},
-		&etcd.Node{Key: "d", Value: `{"name": "d"}`, CreatedIndex: 5},
-		&etcd.Node{Key: "e", Value: `{"name": 'e'}`, CreatedIndex: 4},
+		&etcd.Node{Key: "a", Value: `{"address": "localhost", "port": 5001, "attributes": {"name": "a"}}`, CreatedIndex: 3},
+		&etcd.Node{Key: "b", Value: `{"address": "localhost", "port": 5002, "attributes": {"name": "b"}}`, CreatedIndex: 2},
+		&etcd.Node{Key: "c", Value: `{"address": "localhost", "port": 5003, "attributes": {"name": "c"}}`, CreatedIndex: 1},
+		&etcd.Node{Key: "d", Value: `{"address": "localhost", "port": 5004, "attributes": {"name": "d"}}`, CreatedIndex: 5},
+		&etcd.Node{Key: "e", Value: `{"address": "localhost", "port": 5005, "attributes": {"name": 'e'}}`, CreatedIndex: 4},
 	})
 
 	services := mapEtcdServices(resp, "test-service")
@@ -222,10 +231,18 @@ func (s *EtcdSuite) TestMapEtcdServices(t sweet.T) {
 	Expect(services[1].ID).To(Equal("b"))
 	Expect(services[2].ID).To(Equal("a"))
 	Expect(services[3].ID).To(Equal("d"))
-	Expect(services[0].Metadata).To(Equal(Metadata(map[string]string{"name": "c"})))
-	Expect(services[1].Metadata).To(Equal(Metadata(map[string]string{"name": "b"})))
-	Expect(services[2].Metadata).To(Equal(Metadata(map[string]string{"name": "a"})))
-	Expect(services[3].Metadata).To(Equal(Metadata(map[string]string{"name": "d"})))
+	Expect(services[0].Address).To(Equal("localhost"))
+	Expect(services[1].Address).To(Equal("localhost"))
+	Expect(services[2].Address).To(Equal("localhost"))
+	Expect(services[3].Address).To(Equal("localhost"))
+	Expect(services[0].Port).To(Equal(5003))
+	Expect(services[1].Port).To(Equal(5002))
+	Expect(services[2].Port).To(Equal(5001))
+	Expect(services[3].Port).To(Equal(5004))
+	Expect(services[0].Attributes).To(Equal(Attributes(map[string]string{"name": "c"})))
+	Expect(services[1].Attributes).To(Equal(Attributes(map[string]string{"name": "b"})))
+	Expect(services[2].Attributes).To(Equal(Attributes(map[string]string{"name": "a"})))
+	Expect(services[3].Attributes).To(Equal(Attributes(map[string]string{"name": "d"})))
 }
 
 func (s *EtcdSuite) TestEtcdEventChannel(t sweet.T) {

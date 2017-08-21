@@ -30,9 +30,11 @@ func (s *ZkSuite) TestRegister(t sweet.T) {
 	}
 
 	err := client.Register(&Service{
-		ID:   "node-a",
-		Name: "service",
-		Metadata: map[string]string{
+		ID:      "node-a",
+		Name:    "service",
+		Address: "localhost",
+		Port:    1234,
+		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
@@ -41,7 +43,14 @@ func (s *ZkSuite) TestRegister(t sweet.T) {
 	Expect(err).To(BeNil())
 	Expect(paths).To(ContainElement(Equal("/prefix/service")))
 	Expect(ephemeralPath).To(Equal("/prefix/service/node-a-"))
-	Expect(ephemeralData).To(MatchJSON(`{"foo": "bar", "baz": "bonk"}`))
+	Expect(ephemeralData).To(MatchJSON(`{
+		"address": "localhost",
+		"port": 1234,
+		"attributes": {
+			"foo": "bar",
+			"baz": "bonk"
+		}
+	}`))
 }
 
 func (s *ZkSuite) TestRegisterError(t sweet.T) {
@@ -55,9 +64,11 @@ func (s *ZkSuite) TestRegisterError(t sweet.T) {
 	}
 
 	err := client.Register(&Service{
-		ID:   "node-a",
-		Name: "service",
-		Metadata: map[string]string{
+		ID:      "node-a",
+		Name:    "service",
+		Address: "localhost",
+		Port:    1234,
+		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
@@ -72,10 +83,10 @@ func (s *ZkSuite) TestListServices(t sweet.T) {
 		client     = newZkClient("prefix", conn)
 		calledPath string
 		data       = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"foo": "c"}`),
-			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"foo": "d"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`),
+			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`),
 		}
 	)
 
@@ -98,10 +109,10 @@ func (s *ZkSuite) TestListServices(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	}))
 
 	Expect(calledPath).To(Equal("/prefix/service"))
@@ -115,9 +126,9 @@ func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 		getCalls      = 0
 
 		data = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"foo": "c"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`),
 			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": nil,
 		}
 
@@ -154,9 +165,9 @@ func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
 	}))
 
 	Expect(childrenCalls).To(Equal(2))
@@ -195,10 +206,10 @@ func (s *ZkSuite) TestWatcher(t sweet.T) {
 		childrenChan = make(chan []string, 3)
 		calledPath   string
 		data         = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"foo": "c"}`),
-			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"foo": "d"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`),
+			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`),
 		}
 
 		children = []string{
@@ -226,21 +237,21 @@ func (s *ZkSuite) TestWatcher(t sweet.T) {
 	Expect(err).To(BeNil())
 
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
 	})))
 
 	update <- struct{}{}
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 	})))
 
 	update <- struct{}{}
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	})))
 
 	watcher.Stop()
@@ -258,8 +269,8 @@ func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 		childrenCalls = 0
 		getCalls      = 0
 		data          = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
 		}
 
 		children = []string{
@@ -291,8 +302,8 @@ func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	Expect(err).To(BeNil())
 
 	Eventually(ch).Should(Receive(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 	})))
 
 	Consistently(ch).ShouldNot(Receive())
@@ -303,95 +314,14 @@ func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	Expect(getCalls).To(Equal(5))
 }
 
-func (s *ZkSuite) TestCreatePathSimple(t sweet.T) {
-	var (
-		conn  = NewMockZkConn()
-		paths = []string{}
-	)
-
-	conn.create = func(path string, data []byte) error {
-		paths = append(paths, path)
-		return nil
-	}
-
-	Expect(createPath(conn, "/single")).To(BeNil())
-	Expect(paths).To(Equal([]string{
-		"/single",
-	}))
-}
-
-func (s *ZkSuite) TestCreatePathMultiple(t sweet.T) {
-	var (
-		conn  = NewMockZkConn()
-		paths = []string{}
-	)
-
-	conn.create = func(path string, data []byte) error {
-		paths = append(paths, path)
-		return nil
-	}
-
-	Expect(createPath(conn, "/root/middle/leaf")).To(BeNil())
-	Expect(paths).To(Equal([]string{
-		"/root",
-		"/root/middle",
-		"/root/middle/leaf",
-	}))
-}
-
-func (s *ZkSuite) TestCreatePathError(t sweet.T) {
-	var (
-		conn  = NewMockZkConn()
-		paths = []string{}
-	)
-
-	conn.create = func(path string, data []byte) error {
-		paths = append(paths, path)
-		if len(paths) == 2 {
-			return zk.ErrUnknown
-		}
-
-		return nil
-	}
-
-	Expect(createPath(conn, "/root/middle/leaf")).To(Equal(zk.ErrUnknown))
-	Expect(paths).To(Equal([]string{
-		"/root",
-		"/root/middle",
-	}))
-}
-
-func (s *ZkSuite) TestCreatePathPartiallyExists(t sweet.T) {
-	var (
-		conn  = NewMockZkConn()
-		paths = []string{}
-	)
-
-	conn.create = func(path string, data []byte) error {
-		paths = append(paths, path)
-		if len(paths) < 3 {
-			return zk.ErrNodeExists
-		}
-
-		return nil
-	}
-
-	Expect(createPath(conn, "/root/middle/leaf")).To(BeNil())
-	Expect(paths).To(Equal([]string{
-		"/root",
-		"/root/middle",
-		"/root/middle/leaf",
-	}))
-}
-
 func (s *ZkSuite) TestReadZkServices(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"foo": "c"}`),
-			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"foo": "d"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`),
+			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`),
 		}
 	)
 
@@ -408,10 +338,10 @@ func (s *ZkSuite) TestReadZkServices(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
-		&Service{ID: "node-c", Name: "service", Metadata: map[string]string{"foo": "c"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
+		&Service{ID: "node-c", Name: "service", Address: "localhost", Port: 5003, Attributes: map[string]string{"foo": "c"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	}))
 }
 
@@ -419,10 +349,10 @@ func (s *ZkSuite) TestReadZkServicesNonconformingNodePath(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": "b"}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7g-node-c-0000000123": []byte(`{"foo": "c"}`),
-			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-a000000000": []byte(`{"foo": "d"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": "b"}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7g-node-c-0000000123": []byte(`{"address": "localhost", "port": 5003, "attributes": {"foo": "c"}}`),
+			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-a000000000": []byte(`{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`),
 		}
 	)
 
@@ -439,8 +369,8 @@ func (s *ZkSuite) TestReadZkServicesNonconformingNodePath(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-b", Name: "service", Metadata: map[string]string{"foo": "b"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-b", Name: "service", Address: "localhost", Port: 5002, Attributes: map[string]string{"foo": "b"}},
 	}))
 }
 
@@ -448,10 +378,10 @@ func (s *ZkSuite) TestReadZkServicesNonconformingNodeJSON(t sweet.T) {
 	var (
 		conn = NewMockZkConn()
 		data = map[string][]byte{
-			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"foo": "a"}`),
-			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"foo": 123}`),
-			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`foobarbazbnk`),
-			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"foo": "d"}`),
+			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
+			"/prefix/service/_c_ebd335e2080f406f8967818107ec71bb-node-b-0000000002": []byte(`{"address": "localhost", "port": 5002, "attributes": {"foo": 123}}`),
+			"/prefix/service/_c_64a32eb0990843dabc9332856a2aec7e-node-c-0000000123": []byte(`not json`),
+			"/prefix/service/_c_97383ee5c96b43f89d71d5f80a0b1927-node-d-9000000000": []byte(`{"address": "localhost", "port": 5004, "attributes": {"foo": "d"}}`),
 		}
 	)
 
@@ -468,8 +398,8 @@ func (s *ZkSuite) TestReadZkServicesNonconformingNodeJSON(t sweet.T) {
 
 	Expect(err).To(BeNil())
 	Expect(services).To(Equal([]*Service{
-		&Service{ID: "node-a", Name: "service", Metadata: map[string]string{"foo": "a"}},
-		&Service{ID: "node-d", Name: "service", Metadata: map[string]string{"foo": "d"}},
+		&Service{ID: "node-a", Name: "service", Address: "localhost", Port: 5001, Attributes: map[string]string{"foo": "a"}},
+		&Service{ID: "node-d", Name: "service", Address: "localhost", Port: 5004, Attributes: map[string]string{"foo": "d"}},
 	}))
 }
 
@@ -487,6 +417,106 @@ func (s *ZkSuite) TestReadZkServicesError(t sweet.T) {
 	})
 
 	Expect(err).To(Equal(zk.ErrUnknown))
+}
+
+func (s *ZkSuite) TestExtractZkMeta(t sweet.T) {
+	id, sequenceNumber, ok := extractZkMeta("_c_ebd335e2080f406f8967818107ec71bb-node-a-0000000002")
+	Expect(ok).To(BeTrue())
+	Expect(id).To(Equal("node-a"))
+	Expect(sequenceNumber).To(Equal(02))
+}
+
+func (s *ZkSuite) TestExtractZkMetaHighSequenceNumber(t sweet.T) {
+	id, sequenceNumber, ok := extractZkMeta("_c_ebd335e2080f406f8967818107ec71bb-node-a-9000000000")
+	Expect(ok).To(BeTrue())
+	Expect(id).To(Equal("node-a"))
+	Expect(sequenceNumber).To(Equal(9000000000))
+}
+
+func (s *ZkSuite) TestExtractZkMetaNonMatch(t sweet.T) {
+	_, _, ok := extractZkMeta("_c_ebd335e2080f406f8967818107ec71bb-node-a-a000000002")
+	Expect(ok).To(BeFalse())
+}
+
+func (s *ZkSuite) TestCreateZkPathSimple(t sweet.T) {
+	var (
+		conn  = NewMockZkConn()
+		paths = []string{}
+	)
+
+	conn.create = func(path string, data []byte) error {
+		paths = append(paths, path)
+		return nil
+	}
+
+	Expect(createZkPath(conn, "/single")).To(BeNil())
+	Expect(paths).To(Equal([]string{
+		"/single",
+	}))
+}
+
+func (s *ZkSuite) TestCreateZkPathMultiple(t sweet.T) {
+	var (
+		conn  = NewMockZkConn()
+		paths = []string{}
+	)
+
+	conn.create = func(path string, data []byte) error {
+		paths = append(paths, path)
+		return nil
+	}
+
+	Expect(createZkPath(conn, "/root/middle/leaf")).To(BeNil())
+	Expect(paths).To(Equal([]string{
+		"/root",
+		"/root/middle",
+		"/root/middle/leaf",
+	}))
+}
+
+func (s *ZkSuite) TestCreateZkPathError(t sweet.T) {
+	var (
+		conn  = NewMockZkConn()
+		paths = []string{}
+	)
+
+	conn.create = func(path string, data []byte) error {
+		paths = append(paths, path)
+		if len(paths) == 2 {
+			return zk.ErrUnknown
+		}
+
+		return nil
+	}
+
+	Expect(createZkPath(conn, "/root/middle/leaf")).To(Equal(zk.ErrUnknown))
+	Expect(paths).To(Equal([]string{
+		"/root",
+		"/root/middle",
+	}))
+}
+
+func (s *ZkSuite) TestCreateZkPathPartiallyExists(t sweet.T) {
+	var (
+		conn  = NewMockZkConn()
+		paths = []string{}
+	)
+
+	conn.create = func(path string, data []byte) error {
+		paths = append(paths, path)
+		if len(paths) < 3 {
+			return zk.ErrNodeExists
+		}
+
+		return nil
+	}
+
+	Expect(createZkPath(conn, "/root/middle/leaf")).To(BeNil())
+	Expect(paths).To(Equal([]string{
+		"/root",
+		"/root/middle",
+		"/root/middle/leaf",
+	}))
 }
 
 //

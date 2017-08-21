@@ -22,18 +22,6 @@ type (
 		conn   zkConn
 		stop   chan struct{}
 	}
-
-	zkConn interface {
-		Create(path string, data []byte) error
-		CreateEphemeral(path string, data []byte) error
-		Get(path string) ([]byte, error)
-		Children(path string) ([]string, error)
-		ChildrenW(path string) ([]string, <-chan struct{}, error)
-	}
-
-	zkShim struct {
-		conn *zk.Conn
-	}
 )
 
 // _c_24fc775f3171da36dae47369165c78d4-7fe38486-0488-4335-8fcc-a456108ff6d0_0000000002
@@ -58,17 +46,14 @@ func newZkClient(prefix string, conn zkConn) Client {
 	return &zkClient{prefix: prefix, conn: conn}
 }
 
-//
-// Client
-
 func (c *zkClient) Register(service *Service) error {
-	if err := createPath(c.conn, makePath(c.prefix, service.Name)); err != nil {
+	if err := createZkPath(c.conn, makePath(c.prefix, service.Name)); err != nil {
 		return err
 	}
 
 	return c.conn.CreateEphemeral(
 		makePath(c.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
-		service.SerializedMetadata(),
+		service.SerializeMetadata(),
 	)
 }
 
@@ -96,9 +81,6 @@ func (c *zkClient) NewWatcher(name string) Watcher {
 		stop:   make(chan struct{}),
 	}
 }
-
-//
-// Watcher
 
 func (w *zkWatcher) Start() (<-chan []*Service, error) {
 	ch := make(chan []*Service)
@@ -150,48 +132,51 @@ func (w *zkWatcher) Stop() error {
 }
 
 //
-// Shim
-
-func (s *zkShim) Create(path string, data []byte) error {
-	_, err := s.conn.Create(path, data, 0, zk.WorldACL(zk.PermAll))
-	return err
-}
-
-func (s *zkShim) CreateEphemeral(path string, data []byte) error {
-	_, err := s.conn.CreateProtectedEphemeralSequential(path, data, zk.WorldACL(zk.PermAll))
-	return err
-}
-
-func (s *zkShim) Get(path string) ([]byte, error) {
-	data, _, err := s.conn.Get(path)
-	return data, err
-}
-
-func (s *zkShim) Children(path string) ([]string, error) {
-	data, _, err := s.conn.Children(path)
-	return data, err
-}
-
-func (s *zkShim) ChildrenW(path string) ([]string, <-chan struct{}, error) {
-	data, _, events, err := s.conn.ChildrenW(path)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ch := make(chan struct{})
-
-	go func() {
-		<-events
-		close(ch)
-	}()
-
-	return data, ch, nil
-}
-
-//
 // Helpers
 
-func createPath(conn zkConn, path string) error {
+func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
+	serviceMap := map[int]*Service{}
+
+	for _, path := range paths {
+		id, sequenceNumber, ok := extractZkMeta(path)
+		if !ok {
+			continue
+		}
+
+		data, err := conn.Get(makePath(prefix, name, path))
+		if err != nil {
+			return nil, err
+		}
+
+		s := &Service{
+			ID:   id,
+			Name: name,
+		}
+
+		if parseMetadata(s, data) {
+			serviceMap[sequenceNumber] = s
+		}
+	}
+
+	return sortServiceMap(serviceMap), nil
+}
+
+func extractZkMeta(path string) (string, int, bool) {
+	if !servicePathPattern.MatchString(path) {
+		return "", 0, false
+	}
+
+	// Get text between _c_.{32}- and version
+	id := path[36 : len(path)-11]
+
+	// Get version (last 10 digits) and convert - this can't
+	// fail due as these are ensured to be digits via regex.
+	sequenceNumber, _ := strconv.Atoi(path[len(path)-10:])
+
+	return id, sequenceNumber, true
+}
+
+func createZkPath(conn zkConn, path string) error {
 	parts := strings.Split(path, "/")
 
 	for i := 2; i <= len(parts); i++ {
@@ -202,39 +187,4 @@ func createPath(conn zkConn, path string) error {
 	}
 
 	return nil
-}
-
-func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
-	serviceMap := map[int]*Service{}
-
-	for _, path := range paths {
-		if !servicePathPattern.MatchString(path) {
-			continue
-		}
-
-		// Get text between _c_.{32}- and version
-		id := path[36 : len(path)-11]
-
-		// Get version (last 10 digits) and convert - this can't
-		// fail due as these are ensured to be digits via regex.
-		sequenceNumber, _ := strconv.Atoi(path[len(path)-10:])
-
-		data, err := conn.Get(makePath(prefix, name, path))
-		if err != nil {
-			return nil, err
-		}
-
-		metadata, ok := parseMetadata(data)
-		if !ok {
-			continue
-		}
-
-		serviceMap[sequenceNumber] = &Service{
-			ID:       id,
-			Name:     name,
-			Metadata: metadata,
-		}
-	}
-
-	return sortServiceMap(serviceMap), nil
 }
