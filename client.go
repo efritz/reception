@@ -32,6 +32,15 @@ func (s *Service) SerializeMetadata() []byte {
 	return data
 }
 
-func parseMetadata(service *Service, data []byte) bool {
-	return json.Unmarshal(data, &service) == nil
+func (s *Service) SerializeAttributes() []byte {
+	data, _ := json.Marshal(s.Attributes)
+	return data
+}
+
+func (s *Service) parseMetadata(data []byte) bool {
+	return json.Unmarshal(data, &s) == nil
+}
+
+func (s *Service) parseAttributes(data []byte) bool {
+	return json.Unmarshal(data, &s.Attributes) == nil
 }

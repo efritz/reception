@@ -153,7 +153,7 @@ func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Servic
 			Name: name,
 		}
 
-		if parseMetadata(s, data) {
+		if s.parseMetadata(data) {
 			serviceMap[sequenceNumber] = s
 		}
 	}

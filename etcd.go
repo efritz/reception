@@ -150,7 +150,7 @@ func mapEtcdServices(resp *etcd.Response, name string) []*Service {
 			Name: name,
 		}
 
-		if parseMetadata(s, []byte(node.Value)) {
+		if s.parseMetadata([]byte(node.Value)) {
 			serviceMap[int(node.CreatedIndex)] = s
 		}
 	}
