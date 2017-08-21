@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"golang.org/x/net/context"
@@ -13,8 +14,8 @@ import (
 
 type (
 	consulClient struct {
-		host string
-		api  consulAPI
+		api    consulAPI
+		config *consulConfig
 	}
 
 	consulWatcher struct {
@@ -23,15 +24,22 @@ type (
 		index uint64
 		stop  chan struct{}
 	}
+
+	consulConfig struct {
+		host                   string
+		endpoint               string
+		checkTimeout           string
+		checkInterval          string
+		checkDeregisterTimeout string
+		logger                 Logger
+	}
+
+	ConsulConfig func(*consulConfig)
 )
 
 var ErrIllegalHost = errors.New("illegal host")
 
-func DialConsul(addr, host string) (Client, error) {
-	if host == "" {
-		host = os.Getenv("HOST")
-	}
-
+func DialConsul(addr string, configs ...ConsulConfig) (Client, error) {
 	client, err := consul.NewClient(consul.DefaultConfig())
 	if err != nil {
 		return nil, err
@@ -42,25 +50,58 @@ func DialConsul(addr, host string) (Client, error) {
 		catalog: client.Catalog(),
 	}
 
-	return newConsulClient(host, shim), nil
+	return newConsulClient(shim, configs...), nil
 }
 
-func newConsulClient(host string, api consulAPI) Client {
+func newConsulClient(api consulAPI, configs ...ConsulConfig) Client {
+	config := &consulConfig{
+		host:                   os.Getenv("HOST"),
+		endpoint:               "",
+		checkTimeout:           "10s",
+		checkInterval:          "5s",
+		checkDeregisterTimeout: "30s",
+		logger:                 &defaultLogger{},
+	}
+
+	for _, f := range configs {
+		f(config)
+	}
+
 	return &consulClient{
-		host: host,
-		api:  api,
+		api:    api,
+		config: config,
 	}
 }
+
+func WithHost(host string) ConsulConfig {
+	return func(c *consulConfig) { c.host = host }
+}
+
+func WithEndpoint(endpoint string) ConsulConfig {
+	return func(c *consulConfig) { c.endpoint = endpoint }
+}
+
+func WithCheckTimeout(time.Duration) ConsulConfig {
+	return func(c *consulConfig) { c.checkTimeout = fmt.Sprintf("%#v", c) }
+}
+
+func WithCheckInterval(time.Duration) ConsulConfig {
+	return func(c *consulConfig) { c.checkInterval = fmt.Sprintf("%#v", c) }
+}
+
+func WithCheckDeregisterTimeout(time.Duration) ConsulConfig {
+	return func(c *consulConfig) { c.checkDeregisterTimeout = fmt.Sprintf("%#v", c) }
+}
+
+func WithLogger(logger Logger) ConsulConfig {
+	return func(c *consulConfig) { c.logger = logger }
+}
+
+//
+// Client
 
 func (c *consulClient) Register(service *Service) error {
-	// TODO - find way to set unhealthy
-	// TODO - add explicit deregistration
-
-	if c.host == "" {
-		return ErrIllegalHost
-	}
-
-	endpoint, err := makeServer(c.host)
+	endpoint, err := makeCheckEndpoint(c.config.host, c.config.endpoint, c.config.logger)
 	if err != nil {
 		return err
 	}
@@ -71,13 +112,12 @@ func (c *consulClient) Register(service *Service) error {
 		Address: service.Address,
 		Port:    service.Port,
 		Tags:    []string{string(service.serializeAttributes())},
-		// TODO - make configurable
 		Check: &consul.AgentServiceCheck{
-			HTTP:     endpoint,
-			Timeout:  "1s",
-			Interval: "2s",
-			Status:   "passing",
-			DeregisterCriticalServiceAfter: "30s",
+			HTTP:                           endpoint,
+			Status:                         "passing",
+			Timeout:                        c.config.checkTimeout,
+			Interval:                       c.config.checkInterval,
+			DeregisterCriticalServiceAfter: c.config.checkDeregisterTimeout,
 		},
 	})
 }
@@ -168,7 +208,19 @@ func mapConsulServices(services []*consul.CatalogService, name string) []*Servic
 	return sortServiceMap(serviceMap)
 }
 
-func makeServer(host string) (string, error) {
+func makeCheckEndpoint(host, endpoint string, logger Logger) (string, error) {
+	if endpoint != "" {
+		return endpoint, nil
+	}
+
+	if host == "" {
+		return "", ErrIllegalHost
+	}
+
+	return makeCheckServer(host, logger)
+}
+
+func makeCheckServer(host string, logger Logger) (string, error) {
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		return "", err
@@ -178,21 +230,22 @@ func makeServer(host string) (string, error) {
 	addr := fmt.Sprintf("http://%s:%d/health", host, port)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", consulHealthEndpoint)
+	mux.HandleFunc("/health", makeCheckHTTPFunc(logger))
 
 	go func() {
-		// TODO - use a logger
-		fmt.Printf("Running health check at %s\n", addr)
+		logger.Printf("Running health check at %s\n", addr)
 		http.Serve(listener, mux)
 	}()
 
 	return addr, nil
 }
 
-func consulHealthEndpoint(w http.ResponseWriter, r *http.Request) {
-	// TODO - use a logger
-	fmt.Printf("Consul performing health check\n")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"alive": true}`))
+func makeCheckHTTPFunc(logger Logger) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Printf("Consul performing health check\n")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"alive": true}`))
+	}
 }

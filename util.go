@@ -43,11 +43,16 @@ func isCanceled(ctx context.Context) bool {
 }
 
 func makePath(parts ...string) string {
+	sanitized := []string{}
 	for i := 0; i < len(parts); i++ {
-		parts[i] = strings.Trim(parts[i], "/")
+		trimmed := strings.Trim(parts[i], "/")
+
+		if trimmed != "" {
+			sanitized = append(sanitized, trimmed)
+		}
 	}
 
-	return "/" + strings.Join(parts, "/")
+	return "/" + strings.Join(sanitized, "/")
 }
 
 func sortServiceMap(serviceMap map[int]*Service) []*Service {

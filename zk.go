@@ -12,8 +12,8 @@ import (
 
 type (
 	zkClient struct {
-		prefix string
 		conn   zkConn
+		config *zkConfig
 	}
 
 	zkWatcher struct {
@@ -22,6 +22,12 @@ type (
 		conn   zkConn
 		stop   chan struct{}
 	}
+
+	zkConfig struct {
+		prefix string
+	}
+
+	ZkConfig func(*zkConfig)
 )
 
 // _c_24fc775f3171da36dae47369165c78d4-7fe38486-0488-4335-8fcc-a456108ff6d0_0000000002
@@ -32,8 +38,7 @@ var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
 
 // TODO - exhibitor utilities
 
-func DialZk(addr, prefix string) (Client, error) {
-	// TODO - way to flag disconnects
+func DialZk(addr string, configs ...ZkConfig) (Client, error) {
 	conn, _, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
 		return nil, err
@@ -43,32 +48,51 @@ func DialZk(addr, prefix string) (Client, error) {
 		conn: conn,
 	}
 
-	return newZkClient(prefix, shim), nil
+	return newZkClient(shim, configs...), nil
 }
 
-func newZkClient(prefix string, conn zkConn) Client {
-	return &zkClient{prefix: prefix, conn: conn}
+func newZkClient(conn zkConn, configs ...ZkConfig) Client {
+	config := &zkConfig{
+		prefix: "",
+	}
+
+	for _, f := range configs {
+		f(config)
+	}
+
+	return &zkClient{
+		conn:   conn,
+		config: config,
+	}
 }
+
+// TODO - overload somehow
+func WithZkPrefix(prefix string) ZkConfig {
+	return func(c *zkConfig) { c.prefix = prefix }
+}
+
+//
+// Client
 
 func (c *zkClient) Register(service *Service) error {
-	if err := createZkPath(c.conn, makePath(c.prefix, service.Name)); err != nil {
+	if err := createZkPath(c.conn, makePath(c.config.prefix, service.Name)); err != nil {
 		return err
 	}
 
 	return c.conn.CreateEphemeral(
-		makePath(c.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
+		makePath(c.config.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
 		service.serializeMetadata(),
 	)
 }
 
 func (c *zkClient) ListServices(name string) ([]*Service, error) {
 	for {
-		paths, err := c.conn.Children(makePath(c.prefix, name))
+		paths, err := c.conn.Children(makePath(c.config.prefix, name))
 		if err != nil {
 			return nil, err
 		}
 
-		services, err := readZkServices(c.conn, c.prefix, name, paths)
+		services, err := readZkServices(c.conn, c.config.prefix, name, paths)
 		if err == zk.ErrNoNode {
 			continue
 		}
@@ -79,7 +103,7 @@ func (c *zkClient) ListServices(name string) ([]*Service, error) {
 
 func (c *zkClient) NewWatcher(name string) Watcher {
 	return &zkWatcher{
-		prefix: c.prefix,
+		prefix: c.config.prefix,
 		name:   name,
 		conn:   c.conn,
 		stop:   make(chan struct{}),
@@ -88,10 +112,6 @@ func (c *zkClient) NewWatcher(name string) Watcher {
 
 func (w *zkWatcher) Start() (<-chan []*Service, error) {
 	ch := make(chan []*Service)
-
-	// TODO - how to reconnect
-	// TOOD - how to pass back errors
-	// TODO - what to do in elections if we bump out for a bit (no longer a leader)
 
 	go func() {
 		defer close(ch)

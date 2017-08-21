@@ -21,9 +21,16 @@ type setCall struct {
 
 func (s *EtcdSuite) TestRegister(t sweet.T) {
 	var (
-		api      = newMockKeysAPI()
-		clock    = glock.NewMockClock()
-		client   = newEtcdClient("prefix", api, clock)
+		api    = newMockKeysAPI()
+		clock  = glock.NewMockClock()
+		client = newEtcdClient(
+			api,
+			WithEtcdPrefix("prefix"),
+			WithClock(clock),
+			WithTTL(time.Minute*5),
+			WithRefreshInterval(time.Minute),
+		)
+
 		setCalls = make(chan *setCall)
 		result   = make(chan error)
 		rootCall *setCall
@@ -63,7 +70,7 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 	Expect(rootCall.opts.Dir).To(BeTrue())
 
 	Expect(leafCall.path).To(Equal("/prefix/service/node-a"))
-	Expect(leafCall.opts.TTL).To(Equal(time.Second * 5))
+	Expect(leafCall.opts.TTL).To(Equal(time.Minute * 5))
 	Expect(leafCall.value).To(MatchJSON(`{
 		"address": "localhost",
 		"port": 1234,
@@ -75,19 +82,19 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 
 	for i := 0; i < 5; i++ {
 		Consistently(setCalls).ShouldNot(Receive())
-		clock.Advance(time.Second)
+		clock.Advance(time.Minute)
 		Eventually(setCalls).Should(Receive(&leafCall))
 
 		Expect(leafCall.path).To(Equal("/prefix/service/node-a"))
 		Expect(leafCall.opts.Refresh).To(BeTrue())
-		Expect(leafCall.opts.TTL).To(Equal(time.Second * 5))
+		Expect(leafCall.opts.TTL).To(Equal(time.Minute * 5))
 	}
 }
 
 func (s *EtcdSuite) TestRegisterError(t sweet.T) {
 	var (
 		api    = newMockKeysAPI()
-		client = newEtcdClient("prefix", api, nil)
+		client = newEtcdClient(api, WithEtcdPrefix("prefix"))
 	)
 
 	api.set = func(path, value string, opts *etcd.SetOptions) error {
@@ -109,7 +116,7 @@ func (s *EtcdSuite) TestRegisterError(t sweet.T) {
 func (s *EtcdSuite) TestListServices(t sweet.T) {
 	var (
 		api        = newMockKeysAPI()
-		client     = newEtcdClient("prefix", api, nil)
+		client     = newEtcdClient(api, WithEtcdPrefix("prefix"))
 		calledPath string
 	)
 
@@ -140,7 +147,7 @@ func (s *EtcdSuite) TestListServices(t sweet.T) {
 func (s *EtcdSuite) TestListServicesError(t sweet.T) {
 	var (
 		api    = newMockKeysAPI()
-		client = newEtcdClient("prefix", api, nil)
+		client = newEtcdClient(api, WithEtcdPrefix("prefix"))
 	)
 
 	api.get = func(path string) (*etcd.Response, error) {
@@ -154,7 +161,7 @@ func (s *EtcdSuite) TestListServicesError(t sweet.T) {
 func (s *EtcdSuite) TestWatcher(t sweet.T) {
 	var (
 		api          = newMockKeysAPI()
-		client       = newEtcdClient("prefix", api, nil)
+		client       = newEtcdClient(api, WithEtcdPrefix("prefix"))
 		watcher      = client.NewWatcher("service")
 		etcdWatcher  = newMockEtcdWatcher()
 		update       = make(chan struct{})

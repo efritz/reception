@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/aphistic/sweet"
 	consul "github.com/hashicorp/consul/api"
@@ -15,8 +16,27 @@ type ConsulSuite struct{}
 
 func (s *ConsulSuite) TestRegister(t sweet.T) {
 	var (
-		api          = newMockConsulAPI()
-		client       = newConsulClient("localhost", api)
+		api    = newMockConsulAPI()
+		client = newConsulClient(api, WithHost("localhost"), WithLogger(NewNilLogger()))
+	)
+
+	testHost(api, client)
+}
+
+func (s *ConsulSuite) TestRegisterImplicitHost(t sweet.T) {
+	os.Clearenv()
+	os.Setenv("HOST", "localhost")
+
+	var (
+		api    = newMockConsulAPI()
+		client = newConsulClient(api, WithLogger(NewNilLogger()))
+	)
+
+	testHost(api, client)
+}
+
+func testHost(api *mockConsulAPI, client Client) {
+	var (
 		setCalls     = make(chan *consul.AgentServiceRegistration)
 		result       = make(chan error)
 		registration *consul.AgentServiceRegistration
@@ -58,10 +78,30 @@ func (s *ConsulSuite) TestRegister(t sweet.T) {
 	checkConsulHealthEndpoint(registration.Check.HTTP)
 }
 
+func (s *ConsulSuite) TestRegisterNoHost(t sweet.T) {
+	os.Clearenv()
+
+	var (
+		api    = newMockConsulAPI()
+		client = newConsulClient(api, WithLogger(NewNilLogger()))
+	)
+
+	err := client.Register(&Service{
+		ID:   "node-a",
+		Name: "service",
+		Attributes: map[string]string{
+			"foo": "bar",
+			"baz": "bonk",
+		},
+	})
+
+	Expect(err).To(Equal(ErrIllegalHost))
+}
+
 func (s *ConsulSuite) TestRegisterError(t sweet.T) {
 	var (
 		api    = newMockConsulAPI()
-		client = newConsulClient("localhost", api)
+		client = newConsulClient(api, WithHost("localhost"), WithLogger(NewNilLogger()))
 	)
 
 	api.register = func(registration *consul.AgentServiceRegistration) error {
@@ -83,7 +123,7 @@ func (s *ConsulSuite) TestRegisterError(t sweet.T) {
 func (s *ConsulSuite) TestListServices(t sweet.T) {
 	var (
 		api        = newMockConsulAPI()
-		client     = newConsulClient("localhost", api)
+		client     = newConsulClient(api)
 		calledName string
 	)
 
@@ -114,7 +154,7 @@ func (s *ConsulSuite) TestListServices(t sweet.T) {
 func (s *ConsulSuite) TestListServicesError(t sweet.T) {
 	var (
 		api    = newMockConsulAPI()
-		client = newConsulClient("localhost", api)
+		client = newConsulClient(api)
 	)
 
 	api.list = func(path string) ([]*consul.CatalogService, error) {
@@ -128,7 +168,7 @@ func (s *ConsulSuite) TestListServicesError(t sweet.T) {
 func (s *ConsulSuite) TestWatcher(t sweet.T) {
 	var (
 		api          = newMockConsulAPI()
-		client       = newConsulClient("localhost", api)
+		client       = newConsulClient(api)
 		watcher      = client.NewWatcher("service")
 		indices      = make(chan uint64, 1)
 		childrenChan = make(chan []*consul.CatalogService)
@@ -214,11 +254,11 @@ func (s *ConsulSuite) TestMapConsulServices(t sweet.T) {
 	Expect(services[3].Attributes).To(Equal(Attributes(map[string]string{"name": "d"})))
 }
 
-func (s *ConsulSuite) TestMakeServer(t sweet.T) {
+func (s *ConsulSuite) TestMakeCheckServer(t sweet.T) {
 	endpoints := []string{}
 
 	for i := 0; i < 10; i++ {
-		endpoint, err := makeServer("localhost")
+		endpoint, err := makeCheckServer("localhost", NewNilLogger())
 		Expect(err).To(BeNil())
 		checkConsulHealthEndpoint(endpoint)
 		endpoints = append(endpoints, endpoint)

@@ -12,7 +12,7 @@ type ZkSuite struct{}
 func (s *ZkSuite) TestRegister(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient("prefix", conn)
+		client        = newZkClient(conn, WithZkPrefix("prefix"))
 		paths         = []string{}
 		ephemeralPath string
 		ephemeralData []byte
@@ -56,7 +56,7 @@ func (s *ZkSuite) TestRegister(t sweet.T) {
 func (s *ZkSuite) TestRegisterError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
-		client = newZkClient("prefix", conn)
+		client = newZkClient(conn, WithZkPrefix("prefix"))
 	)
 
 	conn.createEphemeral = func(path string, data []byte) error {
@@ -80,7 +80,7 @@ func (s *ZkSuite) TestRegisterError(t sweet.T) {
 func (s *ZkSuite) TestListServices(t sweet.T) {
 	var (
 		conn       = NewMockZkConn()
-		client     = newZkClient("prefix", conn)
+		client     = newZkClient(conn, WithZkPrefix("prefix"))
 		calledPath string
 		data       = map[string][]byte{
 			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
@@ -121,7 +121,7 @@ func (s *ZkSuite) TestListServices(t sweet.T) {
 func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient("prefix", conn)
+		client        = newZkClient(conn, WithZkPrefix("prefix"))
 		childrenCalls = 0
 		getCalls      = 0
 
@@ -177,7 +177,7 @@ func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 func (s *ZkSuite) TestListServicesError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
-		client = newZkClient("prefix", conn)
+		client = newZkClient(conn, WithZkPrefix("prefix"))
 	)
 
 	conn.children = func(path string) ([]string, error) {
@@ -200,7 +200,7 @@ func (s *ZkSuite) TestListServicesError(t sweet.T) {
 func (s *ZkSuite) TestWatcher(t sweet.T) {
 	var (
 		conn         = NewMockZkConn()
-		client       = newZkClient("prefix", conn)
+		client       = newZkClient(conn, WithZkPrefix("prefix"))
 		watcher      = client.NewWatcher("service")
 		update       = make(chan struct{})
 		childrenChan = make(chan []string, 3)
@@ -262,7 +262,7 @@ func (s *ZkSuite) TestWatcher(t sweet.T) {
 func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient("prefix", conn)
+		client        = newZkClient(conn, WithZkPrefix("prefix"))
 		watcher       = client.NewWatcher("service")
 		update        = make(chan struct{})
 		childrenChan  = make(chan []string, 3)

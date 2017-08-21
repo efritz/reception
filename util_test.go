@@ -96,6 +96,7 @@ func (s *UtilSuite) TestMakePath(t sweet.T) {
 	Expect(makePath("foo")).To(Equal("/foo"))
 	Expect(makePath("foo", "bar", "baz")).To(Equal("/foo/bar/baz"))
 	Expect(makePath("/foo/", "/bar/", "/baz/")).To(Equal("/foo/bar/baz"))
+	Expect(makePath("", "foo", "", "bar", "")).To(Equal("/foo/bar"))
 }
 
 func (s *UtilSuite) TestSortServiceMap(t sweet.T) {

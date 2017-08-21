@@ -11,9 +11,8 @@ import (
 
 type (
 	etcdClient struct {
-		prefix string
 		api    keysAPI
-		clock  glock.Clock
+		config *etcdConfig
 	}
 
 	etcdWatcher struct {
@@ -22,9 +21,18 @@ type (
 		api    keysAPI
 		stop   chan struct{}
 	}
+
+	etcdConfig struct {
+		prefix          string
+		ttl             time.Duration
+		refreshInterval time.Duration
+		clock           glock.Clock
+	}
+
+	EtcdConfig func(*etcdConfig)
 )
 
-func DialEtcd(addr, prefix string) (Client, error) {
+func DialEtcd(addr string, configs ...EtcdConfig) (Client, error) {
 	client, err := etcd.New(etcd.Config{
 		Endpoints:               []string{addr},
 		Transport:               etcd.DefaultTransport,
@@ -39,29 +47,56 @@ func DialEtcd(addr, prefix string) (Client, error) {
 		api: etcd.NewKeysAPI(client),
 	}
 
-	return newEtcdClient(prefix, shim, glock.NewRealClock()), nil
-
+	return newEtcdClient(shim), nil
 }
 
-func newEtcdClient(prefix string, api keysAPI, clock glock.Clock) Client {
+func newEtcdClient(api keysAPI, configs ...EtcdConfig) Client {
+	config := &etcdConfig{
+		prefix:          "",
+		ttl:             time.Second * 30,
+		refreshInterval: time.Second * 5,
+		clock:           glock.NewRealClock(),
+	}
+
+	for _, f := range configs {
+		f(config)
+	}
+
 	return &etcdClient{
-		prefix: prefix,
 		api:    api,
-		clock:  clock,
+		config: config,
 	}
 }
 
+// TODO - overload somehow
+func WithEtcdPrefix(prefix string) EtcdConfig {
+	return func(c *etcdConfig) { c.prefix = prefix }
+}
+
+func WithTTL(ttl time.Duration) EtcdConfig {
+	return func(c *etcdConfig) { c.ttl = ttl }
+}
+
+func WithRefreshInterval(refreshInterval time.Duration) EtcdConfig {
+	return func(c *etcdConfig) { c.refreshInterval = refreshInterval }
+}
+
+func WithClock(clock glock.Clock) EtcdConfig {
+	return func(c *etcdConfig) { c.clock = clock }
+}
+
+//
+// Client
+
 func (c *etcdClient) Register(service *Service) error {
 	var (
-		root = makePath(c.prefix, service.Name)
-		path = makePath(c.prefix, service.Name, service.ID)
+		root = makePath(c.config.prefix, service.Name)
+		path = makePath(c.config.prefix, service.Name, service.ID)
 		data = string(service.serializeMetadata())
 
-		// TODO - make configurable
-		ttl      = time.Second * 5
 		rootOpts = &etcd.SetOptions{PrevExist: etcd.PrevNoExist, Dir: true}
-		leafOpts = &etcd.SetOptions{PrevExist: etcd.PrevNoExist, TTL: ttl}
-		tickOpts = &etcd.SetOptions{Refresh: true, TTL: ttl}
+		leafOpts = &etcd.SetOptions{PrevExist: etcd.PrevNoExist, TTL: c.config.ttl}
+		tickOpts = &etcd.SetOptions{Refresh: true, TTL: c.config.ttl}
 	)
 
 	if err := c.api.Set(root, "", rootOpts); err != nil {
@@ -74,13 +109,9 @@ func (c *etcdClient) Register(service *Service) error {
 		return err
 	}
 
-	// TODO - find way to set unhealthy
-	// TODO - add explicit de-registration
-
 	go func() {
 		for {
-			// TODO - make configurable
-			<-c.clock.After(time.Second)
+			<-c.config.clock.After(c.config.refreshInterval)
 
 			if err := c.api.Set(path, "", tickOpts); err != nil {
 				fmt.Printf("Whoops: %#v\n", err.Error())
@@ -93,7 +124,7 @@ func (c *etcdClient) Register(service *Service) error {
 }
 
 func (c *etcdClient) ListServices(name string) ([]*Service, error) {
-	resp, err := c.api.Get(makePath(c.prefix, name))
+	resp, err := c.api.Get(makePath(c.config.prefix, name))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +134,7 @@ func (c *etcdClient) ListServices(name string) ([]*Service, error) {
 
 func (c *etcdClient) NewWatcher(name string) Watcher {
 	return &etcdWatcher{
-		prefix: c.prefix,
+		prefix: c.config.prefix,
 		name:   name,
 		api:    c.api,
 		stop:   make(chan struct{}),
