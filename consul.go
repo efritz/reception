@@ -40,7 +40,7 @@ type (
 var ErrIllegalHost = errors.New("illegal host")
 
 func DialConsul(addr string, configs ...ConsulConfig) (Client, error) {
-	client, err := consul.NewClient(consul.DefaultConfig())
+	client, err := consul.NewClient(&consul.Config{Address: addr})
 	if err != nil {
 		return nil, err
 	}
