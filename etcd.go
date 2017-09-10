@@ -1,12 +1,12 @@
 package reception
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	etcd "github.com/coreos/etcd/client"
 	"github.com/efritz/glock"
-	"golang.org/x/net/context"
 )
 
 type (

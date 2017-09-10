@@ -1,10 +1,9 @@
 package reception
 
 import (
+	"context"
 	"sort"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 func withContext(stop <-chan struct{}, f func(ctx context.Context) error) (bool, error) {

@@ -1,6 +1,7 @@
 package reception
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
-	"golang.org/x/net/context"
 )
 
 type (

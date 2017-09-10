@@ -1,6 +1,7 @@
 package reception
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/efritz/glock"
 	. "github.com/onsi/gomega"
-	"golang.org/x/net/context"
 )
 
 type EtcdSuite struct{}

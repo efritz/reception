@@ -1,12 +1,12 @@
 package reception
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/aphistic/sweet"
 	. "github.com/onsi/gomega"
-	"golang.org/x/net/context"
 )
 
 type UtilSuite struct{}

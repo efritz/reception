@@ -1,6 +1,7 @@
 package reception
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"github.com/aphistic/sweet"
 	consul "github.com/hashicorp/consul/api"
 	. "github.com/onsi/gomega"
-	"golang.org/x/net/context"
 )
 
 type ConsulSuite struct{}

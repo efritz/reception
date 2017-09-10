@@ -1,8 +1,9 @@
 package reception
 
 import (
+	"context"
+
 	consul "github.com/hashicorp/consul/api"
-	"golang.org/x/net/context"
 )
 
 type (
