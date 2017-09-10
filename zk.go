@@ -36,8 +36,6 @@ type (
 
 var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
 
-// TODO - exhibitor utilities
-
 func DialZk(addr string, configs ...ZkConfig) (Client, error) {
 	conn, _, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
@@ -49,6 +47,15 @@ func DialZk(addr string, configs ...ZkConfig) (Client, error) {
 	}
 
 	return newZkClient(shim, configs...), nil
+}
+
+func DialExhibitor(addr string, configs ...ZkConfig) (Client, error) {
+	zkAddr, err := chooseRandomServer(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return DialZk(zkAddr, configs...)
 }
 
 func newZkClient(conn zkConn, configs ...ZkConfig) Client {
