@@ -27,7 +27,7 @@ type (
 		prefix string
 	}
 
-	ZkConfig func(*zkConfig)
+	ZkConfigFunc func(*zkConfig)
 )
 
 // _c_24fc775f3171da36dae47369165c78d4-7fe38486-0488-4335-8fcc-a456108ff6d0_0000000002
@@ -36,7 +36,16 @@ type (
 
 var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
 
-func DialZk(addr string, configs ...ZkConfig) (Client, error) {
+func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
+	zkAddr, err := chooseRandomServer(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return DialZk(zkAddr, configs...)
+}
+
+func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
 	conn, _, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
 		return nil, err
@@ -49,16 +58,7 @@ func DialZk(addr string, configs ...ZkConfig) (Client, error) {
 	return newZkClient(shim, configs...), nil
 }
 
-func DialExhibitor(addr string, configs ...ZkConfig) (Client, error) {
-	zkAddr, err := chooseRandomServer(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	return DialZk(zkAddr, configs...)
-}
-
-func newZkClient(conn zkConn, configs ...ZkConfig) Client {
+func newZkClient(conn zkConn, configs ...ZkConfigFunc) Client {
 	config := &zkConfig{
 		prefix: "",
 	}
@@ -73,8 +73,7 @@ func newZkClient(conn zkConn, configs ...ZkConfig) Client {
 	}
 }
 
-// TODO - overload somehow
-func WithZkPrefix(prefix string) ZkConfig {
+func WithZkPrefix(prefix string) ZkConfigFunc {
 	return func(c *zkConfig) { c.prefix = prefix }
 }
 

@@ -34,12 +34,12 @@ type (
 		logger                 Logger
 	}
 
-	ConsulConfig func(*consulConfig)
+	ConsulConfigFunc func(*consulConfig)
 )
 
 var ErrIllegalHost = errors.New("illegal host")
 
-func DialConsul(addr string, configs ...ConsulConfig) (Client, error) {
+func DialConsul(addr string, configs ...ConsulConfigFunc) (Client, error) {
 	client, err := consul.NewClient(&consul.Config{Address: addr})
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func DialConsul(addr string, configs ...ConsulConfig) (Client, error) {
 	return newConsulClient(shim, configs...), nil
 }
 
-func newConsulClient(api consulAPI, configs ...ConsulConfig) Client {
+func newConsulClient(api consulAPI, configs ...ConsulConfigFunc) Client {
 	config := &consulConfig{
 		host:                   os.Getenv("HOST"),
 		endpoint:               "",
@@ -73,27 +73,27 @@ func newConsulClient(api consulAPI, configs ...ConsulConfig) Client {
 	}
 }
 
-func WithHost(host string) ConsulConfig {
+func WithHost(host string) ConsulConfigFunc {
 	return func(c *consulConfig) { c.host = host }
 }
 
-func WithEndpoint(endpoint string) ConsulConfig {
+func WithEndpoint(endpoint string) ConsulConfigFunc {
 	return func(c *consulConfig) { c.endpoint = endpoint }
 }
 
-func WithCheckTimeout(time.Duration) ConsulConfig {
+func WithCheckTimeout(time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkTimeout = fmt.Sprintf("%#v", c) }
 }
 
-func WithCheckInterval(time.Duration) ConsulConfig {
+func WithCheckInterval(time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkInterval = fmt.Sprintf("%#v", c) }
 }
 
-func WithCheckDeregisterTimeout(time.Duration) ConsulConfig {
+func WithCheckDeregisterTimeout(time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkDeregisterTimeout = fmt.Sprintf("%#v", c) }
 }
 
-func WithLogger(logger Logger) ConsulConfig {
+func WithLogger(logger Logger) ConsulConfigFunc {
 	return func(c *consulConfig) { c.logger = logger }
 }
 

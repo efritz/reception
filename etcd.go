@@ -29,10 +29,10 @@ type (
 		clock           glock.Clock
 	}
 
-	EtcdConfig func(*etcdConfig)
+	EtcdConfigFunc func(*etcdConfig)
 )
 
-func DialEtcd(addr string, configs ...EtcdConfig) (Client, error) {
+func DialEtcd(addr string, configs ...EtcdConfigFunc) (Client, error) {
 	client, err := etcd.New(etcd.Config{
 		Endpoints:               []string{addr},
 		Transport:               etcd.DefaultTransport,
@@ -50,7 +50,7 @@ func DialEtcd(addr string, configs ...EtcdConfig) (Client, error) {
 	return newEtcdClient(shim), nil
 }
 
-func newEtcdClient(api keysAPI, configs ...EtcdConfig) Client {
+func newEtcdClient(api keysAPI, configs ...EtcdConfigFunc) Client {
 	config := &etcdConfig{
 		prefix:          "",
 		ttl:             time.Second * 30,
@@ -68,20 +68,19 @@ func newEtcdClient(api keysAPI, configs ...EtcdConfig) Client {
 	}
 }
 
-// TODO - overload somehow
-func WithEtcdPrefix(prefix string) EtcdConfig {
+func WithEtcdPrefix(prefix string) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.prefix = prefix }
 }
 
-func WithTTL(ttl time.Duration) EtcdConfig {
+func WithTTL(ttl time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.ttl = ttl }
 }
 
-func WithRefreshInterval(refreshInterval time.Duration) EtcdConfig {
+func WithRefreshInterval(refreshInterval time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.refreshInterval = refreshInterval }
 }
 
-func WithClock(clock glock.Clock) EtcdConfig {
+func WithClock(clock glock.Clock) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.clock = clock }
 }
 
