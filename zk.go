@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samuel/go-zookeeper/zk"
@@ -13,9 +14,11 @@ import (
 
 type (
 	zkClient struct {
-		conn       zkConn
-		disconnect <-chan struct{}
-		config     *zkConfig
+		conn      zkConn
+		state     zk.State
+		listeners []chan struct{}
+		mutex     *sync.Mutex
+		config    *zkConfig
 	}
 
 	zkWatcher struct {
@@ -23,6 +26,11 @@ type (
 		name   string
 		conn   zkConn
 		stop   chan struct{}
+	}
+
+	stateUpdater struct {
+		current zk.State
+		states  <-chan zk.State
 	}
 
 	zkConfig struct {
@@ -56,24 +64,42 @@ func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
 		return nil, err
 	}
 
-	for (<-events).State != zk.StateConnected {
-	}
-
-	return newZkClient(&zkShim{conn}, toDisconnectChan(events), configs...), nil
+	return newZkClient(&zkShim{conn}, events, configs...), nil
 }
 
-func newZkClient(conn zkConn, disconnect <-chan struct{}, configs ...ZkConfigFunc) Client {
+func newZkClient(conn zkConn, events <-chan zk.Event, configs ...ZkConfigFunc) Client {
 	config := &zkConfig{}
 
 	for _, f := range configs {
 		f(config)
 	}
 
-	return &zkClient{
-		conn:       conn,
-		disconnect: disconnect,
-		config:     config,
+	client := &zkClient{
+		conn:      conn,
+		state:     zk.StateConnected,
+		listeners: []chan struct{}{},
+		mutex:     &sync.Mutex{},
+		config:    config,
 	}
+
+	for (<-events).State != zk.StateConnected {
+	}
+
+	go func() {
+		for event := range events {
+			if event.State == zk.StateDisconnected {
+				client.mutex.Lock()
+				listeners := client.listeners
+				client.mutex.Unlock()
+
+				for _, ch := range listeners {
+					ch <- struct{}{}
+				}
+			}
+		}
+	}()
+
+	return client
 }
 
 func WithZkPrefix(prefix string) ZkConfigFunc {
@@ -89,6 +115,10 @@ func (c *zkClient) Register(service *Service, onDisconnect func(error)) error {
 		leafPath = makePath(c.config.prefix, service.Name, fmt.Sprintf("%s-", service.ID))
 	)
 
+	if onDisconnect == nil {
+		onDisconnect = func(error) {}
+	}
+
 	if err := createZkPath(c.conn, rootPath); err != nil {
 		return err
 	}
@@ -97,15 +127,15 @@ func (c *zkClient) Register(service *Service, onDisconnect func(error)) error {
 		return err
 	}
 
-	// TODO - ensure currently connected (above stuff will fail otherwise, right...?)
+	ch := make(chan struct{})
+
+	c.mutex.Lock()
+	c.listeners = append(c.listeners, ch)
+	c.mutex.Unlock()
 
 	go func() {
-		// TODO - how to handle fanout?
-
-		for range c.disconnect {
-			if onDisconnect != nil {
-				onDisconnect(ErrZkDisconnect)
-			}
+		for range ch {
+			onDisconnect(ErrZkDisconnect)
 		}
 	}()
 
@@ -181,22 +211,6 @@ func (w *zkWatcher) Stop() {
 
 //
 // Helpers
-
-func toDisconnectChan(events <-chan zk.Event) <-chan struct{} {
-	disconnect := make(chan struct{})
-
-	go func() {
-		defer close(disconnect)
-
-		for event := range events {
-			if event.State == zk.StateDisconnected {
-				disconnect <- struct{}{}
-			}
-		}
-	}()
-
-	return disconnect
-}
 
 func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
 	serviceMap := map[int]*Service{}

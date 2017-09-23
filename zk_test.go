@@ -9,12 +9,10 @@ import (
 
 type ZkSuite struct{}
 
-var testZkDisconnectChan = make(chan struct{})
-
 func (s *ZkSuite) TestRegister(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client        = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 		paths         = []string{}
 		ephemeralPath string
 		ephemeralData []byte
@@ -58,7 +56,7 @@ func (s *ZkSuite) TestRegister(t sweet.T) {
 func (s *ZkSuite) TestRegisterError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
-		client = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 	)
 
 	conn.createEphemeral = func(path string, data []byte) error {
@@ -80,14 +78,15 @@ func (s *ZkSuite) TestRegisterError(t sweet.T) {
 }
 
 func (s *ZkSuite) TestRegisterDisconnect(t sweet.T) {
+	eventChan := make(chan zk.Event, 1)
+	defer close(eventChan)
+	eventChan <- zk.Event{State: zk.StateConnected}
+
 	var (
 		conn            = NewMockZkConn()
-		disconnectChan  = make(chan struct{})
-		client          = newZkClient(conn, disconnectChan, WithZkPrefix("prefix"))
+		client          = newZkClient(conn, eventChan, WithZkPrefix("prefix"))
 		disconnectCalls = make(chan error)
 	)
-
-	defer close(disconnectChan)
 
 	service := &Service{
 		ID:      "node-a",
@@ -105,18 +104,64 @@ func (s *ZkSuite) TestRegisterDisconnect(t sweet.T) {
 	})
 
 	Expect(err).To(BeNil())
-	disconnectChan <- struct{}{}
-	Eventually(disconnectCalls).Should(Receive(Equal(ErrZkDisconnect)))
 
-	Consistently(disconnectCalls).ShouldNot(Receive())
-	disconnectChan <- struct{}{}
+	eventChan <- zk.Event{State: zk.StateDisconnected}
 	Eventually(disconnectCalls).Should(Receive(Equal(ErrZkDisconnect)))
+	Consistently(disconnectCalls).ShouldNot(Receive())
+
+	eventChan <- zk.Event{State: zk.StateConnected}
+	eventChan <- zk.Event{State: zk.StateDisconnected}
+	Eventually(disconnectCalls).Should(Receive(Equal(ErrZkDisconnect)))
+	Consistently(disconnectCalls).ShouldNot(Receive())
+}
+
+func (s *ZkSuite) TestRegisterDisconnectMultipleListeners(t sweet.T) {
+	eventChan := make(chan zk.Event, 1)
+	defer close(eventChan)
+	eventChan <- zk.Event{State: zk.StateConnected}
+
+	var (
+		conn             = NewMockZkConn()
+		client           = newZkClient(conn, eventChan, WithZkPrefix("prefix"))
+		disconnectCalls1 = make(chan error)
+		disconnectCalls2 = make(chan error)
+	)
+
+	service := &Service{
+		ID:      "node-a",
+		Name:    "service",
+		Address: "localhost",
+		Port:    1234,
+		Attributes: map[string]string{
+			"foo": "bar",
+			"baz": "bonk",
+		},
+	}
+
+	err1 := client.Register(service, func(err error) { disconnectCalls1 <- err })
+	err2 := client.Register(service, func(err error) { disconnectCalls2 <- err })
+
+	Expect(err1).To(BeNil())
+	Expect(err2).To(BeNil())
+
+	eventChan <- zk.Event{State: zk.StateDisconnected}
+	Eventually(disconnectCalls1).Should(Receive(Equal(ErrZkDisconnect)))
+	Eventually(disconnectCalls2).Should(Receive(Equal(ErrZkDisconnect)))
+	Consistently(disconnectCalls1).ShouldNot(Receive())
+	Consistently(disconnectCalls2).ShouldNot(Receive())
+
+	eventChan <- zk.Event{State: zk.StateConnected}
+	eventChan <- zk.Event{State: zk.StateDisconnected}
+	Eventually(disconnectCalls1).Should(Receive(Equal(ErrZkDisconnect)))
+	Eventually(disconnectCalls2).Should(Receive(Equal(ErrZkDisconnect)))
+	Consistently(disconnectCalls1).ShouldNot(Receive())
+	Consistently(disconnectCalls2).ShouldNot(Receive())
 }
 
 func (s *ZkSuite) TestListServices(t sweet.T) {
 	var (
 		conn       = NewMockZkConn()
-		client     = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client     = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 		calledPath string
 		data       = map[string][]byte{
 			"/prefix/service/_c_345e7574c5464a76bf5f0c5b77ed8de7-node-a-0000000001": []byte(`{"address": "localhost", "port": 5001, "attributes": {"foo": "a"}}`),
@@ -157,7 +202,7 @@ func (s *ZkSuite) TestListServices(t sweet.T) {
 func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client        = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 		childrenCalls = 0
 		getCalls      = 0
 
@@ -213,7 +258,7 @@ func (s *ZkSuite) TestListServicesGetRace(t sweet.T) {
 func (s *ZkSuite) TestListServicesError(t sweet.T) {
 	var (
 		conn   = NewMockZkConn()
-		client = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 	)
 
 	conn.children = func(path string) ([]string, error) {
@@ -236,7 +281,7 @@ func (s *ZkSuite) TestListServicesError(t sweet.T) {
 func (s *ZkSuite) TestWatcher(t sweet.T) {
 	var (
 		conn         = NewMockZkConn()
-		client       = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client       = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 		watcher      = client.NewWatcher("service")
 		update       = make(chan struct{})
 		childrenChan = make(chan []string, 3)
@@ -298,7 +343,7 @@ func (s *ZkSuite) TestWatcher(t sweet.T) {
 func (s *ZkSuite) TestWatcherGetRace(t sweet.T) {
 	var (
 		conn          = NewMockZkConn()
-		client        = newZkClient(conn, testZkDisconnectChan, WithZkPrefix("prefix"))
+		client        = newZkClient(conn, makeEventChan(), WithZkPrefix("prefix"))
 		watcher       = client.NewWatcher("service")
 		update        = make(chan struct{})
 		childrenChan  = make(chan []string, 3)
@@ -553,6 +598,15 @@ func (s *ZkSuite) TestCreateZkPathPartiallyExists(t sweet.T) {
 		"/root/middle",
 		"/root/middle/leaf",
 	}))
+}
+
+//
+// Helpers
+
+func makeEventChan() <-chan zk.Event {
+	ch := make(chan zk.Event, 1)
+	ch <- zk.Event{State: zk.StateConnected}
+	return ch
 }
 
 //
