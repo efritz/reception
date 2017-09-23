@@ -15,15 +15,15 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 		errChan           = make(chan error)
 		registeredService *Service
 		stopCalled        = false
-		elector           = NewElector(client, "service", map[string]string{
+		elector           = NewElector(client, "service", WithAttributes(map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
-		})
+		}))
 	)
 
 	defer close(errChan)
 
-	client.register = func(service *Service) error {
+	client.register = func(service *Service, onDisconnect func(error)) error {
 		registeredService = service
 		return nil
 	}
@@ -67,7 +67,7 @@ func (s *ElectionSuite) TestCancel(t sweet.T) {
 		watcher    = newMockWatcher()
 		errChan    = make(chan error)
 		stopCalled = false
-		elector    = NewElector(client, "service", nil)
+		elector    = NewElector(client, "service")
 	)
 
 	defer close(errChan)
@@ -98,22 +98,30 @@ func (s *ElectionSuite) TestCancel(t sweet.T) {
 // Mocks
 
 type mockClient struct {
-	register     func(service *Service) error
+	register     func(service *Service, onDisconnect func(error)) error
 	listServices func(name string) ([]*Service, error)
 	newWatcher   func(name string) Watcher
 }
 
 func newMockClient() *mockClient {
 	return &mockClient{
-		register:     func(service *Service) error { return nil },
+		register:     func(service *Service, onDisconnect func(error)) error { return nil },
 		listServices: func(name string) ([]*Service, error) { return nil, nil },
 		newWatcher:   func(name string) Watcher { return nil },
 	}
 }
 
-func (c *mockClient) Register(service *Service) error              { return c.register(service) }
-func (c *mockClient) ListServices(name string) ([]*Service, error) { return c.listServices(name) }
-func (c *mockClient) NewWatcher(name string) Watcher               { return c.newWatcher(name) }
+func (c *mockClient) Register(service *Service, onDisconnect func(error)) error {
+	return c.register(service, onDisconnect)
+}
+
+func (c *mockClient) ListServices(name string) ([]*Service, error) {
+	return c.listServices(name)
+}
+
+func (c *mockClient) NewWatcher(name string) Watcher {
+	return c.newWatcher(name)
+}
 
 type mockWatcher struct {
 	start func() (<-chan *ServiceState, error)

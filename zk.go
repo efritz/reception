@@ -1,6 +1,7 @@
 package reception
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -12,8 +13,9 @@ import (
 
 type (
 	zkClient struct {
-		conn   zkConn
-		config *zkConfig
+		conn       zkConn
+		disconnect <-chan struct{}
+		config     *zkConfig
 	}
 
 	zkWatcher struct {
@@ -34,7 +36,10 @@ type (
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^|....................................|^^^^^^^^^^
 //           Zookeeper Prefix         |              Server ID             |  Seq No
 
-var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
+var (
+	ErrZkDisconnect    = errors.New("zk session has been disconnected")
+	servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
+)
 
 func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
 	zkAddr, err := chooseRandomServer(addr)
@@ -46,30 +51,28 @@ func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
 }
 
 func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
-	conn, _, err := zk.Connect([]string{addr}, time.Second)
+	conn, events, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
 		return nil, err
 	}
 
-	shim := &zkShim{
-		conn: conn,
+	for (<-events).State != zk.StateConnected {
 	}
 
-	return newZkClient(shim, configs...), nil
+	return newZkClient(&zkShim{conn}, toDisconnectChan(events), configs...), nil
 }
 
-func newZkClient(conn zkConn, configs ...ZkConfigFunc) Client {
-	config := &zkConfig{
-		prefix: "",
-	}
+func newZkClient(conn zkConn, disconnect <-chan struct{}, configs ...ZkConfigFunc) Client {
+	config := &zkConfig{}
 
 	for _, f := range configs {
 		f(config)
 	}
 
 	return &zkClient{
-		conn:   conn,
-		config: config,
+		conn:       conn,
+		disconnect: disconnect,
+		config:     config,
 	}
 }
 
@@ -80,15 +83,33 @@ func WithZkPrefix(prefix string) ZkConfigFunc {
 //
 // Client
 
-func (c *zkClient) Register(service *Service) error {
-	if err := createZkPath(c.conn, makePath(c.config.prefix, service.Name)); err != nil {
+func (c *zkClient) Register(service *Service, onDisconnect func(error)) error {
+	var (
+		rootPath = makePath(c.config.prefix, service.Name)
+		leafPath = makePath(c.config.prefix, service.Name, fmt.Sprintf("%s-", service.ID))
+	)
+
+	if err := createZkPath(c.conn, rootPath); err != nil {
 		return err
 	}
 
-	return c.conn.CreateEphemeral(
-		makePath(c.config.prefix, service.Name, fmt.Sprintf("%s-", service.ID)),
-		service.serializeMetadata(),
-	)
+	if err := c.conn.CreateEphemeral(leafPath, service.serializeMetadata()); err != nil {
+		return err
+	}
+
+	// TODO - ensure currently connected (above stuff will fail otherwise, right...?)
+
+	go func() {
+		// TODO - how to handle fanout?
+
+		for range c.disconnect {
+			if onDisconnect != nil {
+				onDisconnect(ErrZkDisconnect)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (c *zkClient) ListServices(name string) ([]*Service, error) {
@@ -160,6 +181,22 @@ func (w *zkWatcher) Stop() {
 
 //
 // Helpers
+
+func toDisconnectChan(events <-chan zk.Event) <-chan struct{} {
+	disconnect := make(chan struct{})
+
+	go func() {
+		defer close(disconnect)
+
+		for event := range events {
+			if event.State == zk.StateDisconnected {
+				disconnect <- struct{}{}
+			}
+		}
+	}()
+
+	return disconnect
+}
 
 func readZkServices(conn zkConn, prefix, name string, paths []string) ([]*Service, error) {
 	serviceMap := map[int]*Service{}

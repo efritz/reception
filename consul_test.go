@@ -3,11 +3,11 @@ package reception
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"net/http"
 	"os"
+	"time"
 
 	"github.com/aphistic/sweet"
+	"github.com/efritz/glock"
 	consul "github.com/hashicorp/consul/api"
 	. "github.com/onsi/gomega"
 )
@@ -50,7 +50,7 @@ func testHost(api *mockConsulAPI, client Client) {
 	go func() {
 		defer close(result)
 
-		result <- client.Register(&Service{
+		service := &Service{
 			ID:      "node-a",
 			Name:    "service",
 			Address: "localhost",
@@ -59,7 +59,9 @@ func testHost(api *mockConsulAPI, client Client) {
 				"foo": "bar",
 				"baz": "bonk",
 			},
-		})
+		}
+
+		result <- client.Register(service, nil)
 	}()
 
 	Eventually(setCalls).Should(Receive(&registration))
@@ -86,16 +88,16 @@ func (s *ConsulSuite) TestRegisterNoHost(t sweet.T) {
 		client = newConsulClient(api, WithLogger(NewNilLogger()))
 	)
 
-	err := client.Register(&Service{
+	service := &Service{
 		ID:   "node-a",
 		Name: "service",
 		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
-	})
+	}
 
-	Expect(err).To(Equal(ErrIllegalHost))
+	Expect(client.Register(service, nil)).To(Equal(ErrIllegalHost))
 }
 
 func (s *ConsulSuite) TestRegisterError(t sweet.T) {
@@ -108,16 +110,68 @@ func (s *ConsulSuite) TestRegisterError(t sweet.T) {
 		return errors.New("utoh")
 	}
 
-	err := client.Register(&Service{
+	service := &Service{
 		ID:   "node-a",
 		Name: "service",
 		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
-	})
+	}
 
-	Expect(err).To(MatchError("utoh"))
+	Expect(client.Register(service, nil)).To(MatchError("utoh"))
+}
+
+func (s *ConsulSuite) TestRegisterDisconnect(t sweet.T) {
+	var (
+		api             = newMockConsulAPI()
+		clock           = glock.NewMockClock()
+		setCalls        = make(chan *consul.AgentServiceRegistration)
+		disconnectCalls = make(chan error)
+		registration    *consul.AgentServiceRegistration
+		client          = newConsulClient(
+			api,
+			WithHost("localhost"),
+			WithLogger(NewNilLogger()),
+			WithCheckDeregisterTimeout(time.Minute),
+			withConsulClock(clock),
+		)
+	)
+
+	defer close(disconnectCalls)
+
+	api.register = func(registration *consul.AgentServiceRegistration) error {
+		setCalls <- registration
+		return nil
+	}
+
+	go func() {
+		service := &Service{
+			ID:      "node-a",
+			Name:    "service",
+			Address: "localhost",
+			Port:    1234,
+			Attributes: map[string]string{
+				"foo": "bar",
+				"baz": "bonk",
+			},
+		}
+
+		client.Register(service, func(err error) {
+			disconnectCalls <- err
+		})
+	}()
+
+	Eventually(setCalls).Should(Receive(&registration))
+
+	checkConsulHealthEndpoint(registration.Check.HTTP)
+	clock.Advance(time.Minute / 2)
+	checkConsulHealthEndpoint(registration.Check.HTTP)
+	clock.Advance(time.Minute / 2)
+	Consistently(disconnectCalls).ShouldNot(Receive())
+	clock.Advance(time.Minute / 2)
+	Eventually(disconnectCalls).Should(Receive(Equal(ErrNoConsulHealthCheck)))
+
 }
 
 func (s *ConsulSuite) TestListServices(t sweet.T) {
@@ -289,23 +343,6 @@ func (s *ConsulSuite) TestMapConsulServices(t sweet.T) {
 	Expect(services[3].Attributes).To(Equal(Attributes(map[string]string{"name": "d"})))
 }
 
-func (s *ConsulSuite) TestMakeCheckServer(t sweet.T) {
-	endpoints := []string{}
-
-	for i := 0; i < 10; i++ {
-		endpoint, err := makeCheckServer("localhost", NewNilLogger())
-		Expect(err).To(BeNil())
-		checkConsulHealthEndpoint(endpoint)
-		endpoints = append(endpoints, endpoint)
-	}
-
-	for i := 0; i < 10; i++ {
-		for j := i + 1; j < 10; j++ {
-			Expect(endpoints[i]).NotTo(Equal(endpoints[j]))
-		}
-	}
-}
-
 //
 // Mocks
 
@@ -333,20 +370,4 @@ func (c *mockConsulAPI) List(name string) ([]*consul.CatalogService, error) {
 
 func (c *mockConsulAPI) Watch(name string, index uint64, ctx context.Context) ([]*consul.CatalogService, uint64, error) {
 	return c.watch(name, index, ctx)
-}
-
-//
-// Helpers
-
-func checkConsulHealthEndpoint(endpoint string) {
-	req, err := http.NewRequest("GET", endpoint, nil)
-	Expect(err).To(BeNil())
-
-	resp, err := http.DefaultClient.Do(req)
-	Expect(err).To(BeNil())
-	defer resp.Body.Close()
-
-	data, _ := ioutil.ReadAll(resp.Body)
-	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-	Expect(data).To(MatchJSON(`{"alive": true}`))
 }

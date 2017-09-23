@@ -21,5 +21,6 @@ func TestMain(m *testing.M) {
 		s.AddSuite(&ExhibitorSuite{})
 		s.AddSuite(&ElectionSuite{})
 		s.AddSuite(&UtilSuite{})
+		s.AddSuite(&CheckServerSuite{})
 	})
 }

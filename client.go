@@ -6,7 +6,7 @@ import (
 
 type (
 	Client interface {
-		Register(service *Service) error
+		Register(service *Service, onDisconnect func(error)) error
 		ListServices(name string) ([]*Service, error)
 		NewWatcher(name string) Watcher
 	}

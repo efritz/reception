@@ -26,9 +26,9 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 		client = newEtcdClient(
 			api,
 			WithEtcdPrefix("prefix"),
-			WithClock(clock),
 			WithTTL(time.Minute*5),
 			WithRefreshInterval(time.Minute),
+			withEtcdClock(clock),
 		)
 
 		setCalls = make(chan *setCall)
@@ -50,7 +50,7 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 	go func() {
 		defer close(result)
 
-		result <- client.Register(&Service{
+		service := &Service{
 			ID:      "node-a",
 			Name:    "service",
 			Address: "localhost",
@@ -59,7 +59,9 @@ func (s *EtcdSuite) TestRegister(t sweet.T) {
 				"foo": "bar",
 				"baz": "bonk",
 			},
-		})
+		}
+
+		result <- client.Register(service, nil)
 	}()
 
 	Eventually(setCalls).Should(Receive(&rootCall))
@@ -101,16 +103,79 @@ func (s *EtcdSuite) TestRegisterError(t sweet.T) {
 		return errors.New("utoh")
 	}
 
-	err := client.Register(&Service{
+	service := &Service{
 		ID:   "node-a",
 		Name: "service",
 		Attributes: map[string]string{
 			"foo": "bar",
 			"baz": "bonk",
 		},
-	})
+	}
 
-	Expect(err).To(MatchError("utoh"))
+	Expect(client.Register(service, nil)).To(MatchError("utoh"))
+}
+
+func (s *EtcdSuite) TestRegisterDisconnect(t sweet.T) {
+	var (
+		api    = newMockKeysAPI()
+		clock  = glock.NewMockClock()
+		client = newEtcdClient(
+			api,
+			WithEtcdPrefix("prefix"),
+			WithTTL(time.Minute*5),
+			WithRefreshInterval(time.Minute),
+			withEtcdClock(clock),
+		)
+
+		numCalls        = 0
+		setCalls        = make(chan *setCall)
+		disconnectCalls = make(chan error)
+		expectedErr     = errors.New("utoh")
+	)
+
+	defer close(disconnectCalls)
+
+	api.set = func(path, value string, opts *etcd.SetOptions) error {
+		setCalls <- &setCall{
+			path:  path,
+			value: value,
+			opts:  opts,
+		}
+
+		numCalls++
+		if numCalls > 2 {
+			return expectedErr
+		}
+
+		return nil
+	}
+
+	go func() {
+		service := &Service{
+			ID:      "node-a",
+			Name:    "service",
+			Address: "localhost",
+			Port:    1234,
+			Attributes: map[string]string{
+				"foo": "bar",
+				"baz": "bonk",
+			},
+		}
+
+		client.Register(service, func(err error) {
+			disconnectCalls <- err
+		})
+	}()
+
+	Eventually(setCalls).Should(Receive())
+	Eventually(setCalls).Should(Receive())
+
+	for i := 0; i < 5; i++ {
+		Consistently(setCalls).ShouldNot(Receive())
+		clock.Advance(time.Minute)
+		Eventually(setCalls).Should(Receive())
+		Eventually(disconnectCalls).Should(Receive(Equal(expectedErr)))
+	}
 }
 
 func (s *EtcdSuite) TestListServices(t sweet.T) {

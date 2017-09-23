@@ -25,9 +25,9 @@ func (s *ExhibitorSuite) TestChoosesRandomServer(t sweet.T) {
 		frequency[addr] = frequency[addr] + 1
 	}
 
-	Expect(frequency["foo:3000"]).To(BeNumerically("~", 500, 50))
-	Expect(frequency["bar:3000"]).To(BeNumerically("~", 500, 50))
-	Expect(frequency["baz:3000"]).To(BeNumerically("~", 500, 50))
+	Expect(frequency["foo:3000"]).To(BeNumerically("~", 500, 100))
+	Expect(frequency["bar:3000"]).To(BeNumerically("~", 500, 100))
+	Expect(frequency["baz:3000"]).To(BeNumerically("~", 500, 100))
 	Expect(frequency["foo:3000"] + frequency["bar:3000"] + frequency["baz:3000"]).To(Equal(1500))
 }
 

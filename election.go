@@ -13,22 +13,38 @@ type (
 	}
 
 	elector struct {
-		client     Client
-		name       string
-		attributes Attributes
-		stop       chan struct{}
+		client       Client
+		name         string
+		stop         chan struct{}
+		attributes   Attributes
+		onDisconnect func(error)
 	}
+
+	ElectorConfigFunc func(*elector)
 )
 
 var ErrElectionCanceled = errors.New("election canceled")
 
-func NewElector(client Client, name string, attributes Attributes) Elector {
-	return &elector{
-		client:     client,
-		name:       name,
-		attributes: attributes,
-		stop:       make(chan struct{}),
+func NewElector(client Client, name string, configs ...ElectorConfigFunc) Elector {
+	elector := &elector{
+		client: client,
+		name:   name,
+		stop:   make(chan struct{}),
 	}
+
+	for _, f := range configs {
+		f(elector)
+	}
+
+	return elector
+}
+
+func WithAttributes(attributes Attributes) ElectorConfigFunc {
+	return func(e *elector) { e.attributes = attributes }
+}
+
+func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
+	return func(e *elector) { e.onDisconnect = onDisconnect }
 }
 
 func (e *elector) Elect() error {
@@ -38,7 +54,7 @@ func (e *elector) Elect() error {
 		Attributes: e.attributes,
 	}
 
-	if err := e.client.Register(service); err != nil {
+	if err := e.client.Register(service, e.onDisconnect); err != nil {
 		return err
 	}
 

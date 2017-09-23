@@ -2,7 +2,6 @@ package reception
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	etcd "github.com/coreos/etcd/client"
@@ -43,11 +42,7 @@ func DialEtcd(addr string, configs ...EtcdConfigFunc) (Client, error) {
 		return nil, err
 	}
 
-	shim := &etcdShim{
-		api: etcd.NewKeysAPI(client),
-	}
-
-	return newEtcdClient(shim), nil
+	return newEtcdClient(&etcdShim{etcd.NewKeysAPI(client)}), nil
 }
 
 func newEtcdClient(api keysAPI, configs ...EtcdConfigFunc) Client {
@@ -80,14 +75,14 @@ func WithRefreshInterval(refreshInterval time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.refreshInterval = refreshInterval }
 }
 
-func WithClock(clock glock.Clock) EtcdConfigFunc {
+func withEtcdClock(clock glock.Clock) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.clock = clock }
 }
 
 //
 // Client
 
-func (c *etcdClient) Register(service *Service) error {
+func (c *etcdClient) Register(service *Service, onDisconnect func(error)) error {
 	var (
 		root = makePath(c.config.prefix, service.Name)
 		path = makePath(c.config.prefix, service.Name, service.ID)
@@ -113,9 +108,9 @@ func (c *etcdClient) Register(service *Service) error {
 			<-c.config.clock.After(c.config.refreshInterval)
 
 			if err := c.api.Set(path, "", tickOpts); err != nil {
-				// TODO - inform of 'disconnect'
-				fmt.Printf("Whoops: %#v\n", err.Error())
-				return
+				if onDisconnect != nil {
+					onDisconnect(err)
+				}
 			}
 		}
 	}()

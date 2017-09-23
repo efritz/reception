@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/efritz/glock"
 	consul "github.com/hashicorp/consul/api"
 )
 
 type (
 	consulClient struct {
-		api    consulAPI
-		config *consulConfig
+		api         consulAPI
+		config      *consulConfig
+		checkServer *checkServer
 	}
 
 	consulWatcher struct {
@@ -27,17 +27,18 @@ type (
 
 	consulConfig struct {
 		host                   string
-		endpoint               string
-		checkTimeout           string
-		checkInterval          string
-		checkDeregisterTimeout string
+		port                   int
+		checkTimeout           time.Duration
+		checkInterval          time.Duration
+		checkDeregisterTimeout time.Duration
 		logger                 Logger
+		clock                  glock.Clock
 	}
 
 	ConsulConfigFunc func(*consulConfig)
 )
 
-var ErrIllegalHost = errors.New("illegal host")
+var ErrNoConsulHealthCheck = errors.New("consul has not pinged in disconnect timeout")
 
 func DialConsul(addr string, configs ...ConsulConfigFunc) (Client, error) {
 	client, err := consul.NewClient(&consul.Config{Address: addr})
@@ -56,20 +57,31 @@ func DialConsul(addr string, configs ...ConsulConfigFunc) (Client, error) {
 func newConsulClient(api consulAPI, configs ...ConsulConfigFunc) Client {
 	config := &consulConfig{
 		host:                   os.Getenv("HOST"),
-		endpoint:               "",
-		checkTimeout:           "10s",
-		checkInterval:          "5s",
-		checkDeregisterTimeout: "30s",
+		port:                   0,
+		checkTimeout:           time.Second * 10,
+		checkInterval:          time.Second * 5,
+		checkDeregisterTimeout: time.Second * 30,
 		logger:                 &defaultLogger{},
+		clock:                  glock.NewRealClock(),
 	}
 
 	for _, f := range configs {
 		f(config)
 	}
 
+	checkServer := newCheckServer(
+		config.host,
+		config.port,
+		config.logger,
+		config.clock,
+	)
+
+	checkServer.start()
+
 	return &consulClient{
-		api:    api,
-		config: config,
+		api:         api,
+		config:      config,
+		checkServer: checkServer,
 	}
 }
 
@@ -77,34 +89,65 @@ func WithHost(host string) ConsulConfigFunc {
 	return func(c *consulConfig) { c.host = host }
 }
 
-func WithEndpoint(endpoint string) ConsulConfigFunc {
-	return func(c *consulConfig) { c.endpoint = endpoint }
+func WithPort(port int) ConsulConfigFunc {
+	return func(c *consulConfig) { c.port = port }
 }
 
-func WithCheckTimeout(time.Duration) ConsulConfigFunc {
-	return func(c *consulConfig) { c.checkTimeout = fmt.Sprintf("%#v", c) }
+func WithCheckTimeout(timeout time.Duration) ConsulConfigFunc {
+	return func(c *consulConfig) { c.checkTimeout = timeout }
 }
 
-func WithCheckInterval(time.Duration) ConsulConfigFunc {
-	return func(c *consulConfig) { c.checkInterval = fmt.Sprintf("%#v", c) }
+func WithCheckInterval(timeout time.Duration) ConsulConfigFunc {
+	return func(c *consulConfig) { c.checkInterval = timeout }
 }
 
-func WithCheckDeregisterTimeout(time.Duration) ConsulConfigFunc {
-	return func(c *consulConfig) { c.checkDeregisterTimeout = fmt.Sprintf("%#v", c) }
+func WithCheckDeregisterTimeout(timeout time.Duration) ConsulConfigFunc {
+	return func(c *consulConfig) { c.checkDeregisterTimeout = timeout }
 }
 
 func WithLogger(logger Logger) ConsulConfigFunc {
 	return func(c *consulConfig) { c.logger = logger }
 }
 
+func withConsulClock(clock glock.Clock) ConsulConfigFunc {
+	return func(c *consulConfig) { c.clock = clock }
+}
+
 //
 // Client
 
-func (c *consulClient) Register(service *Service) error {
-	endpoint, err := makeCheckEndpoint(c.config.host, c.config.endpoint, c.config.logger)
-	if err != nil {
-		return err
+func (c *consulClient) Register(service *Service, onDisconnect func(error)) error {
+	if onDisconnect == nil {
+		onDisconnect = func(error) {}
 	}
+
+	ping := c.checkServer.register()
+
+	select {
+	case err := <-ping:
+		if err != nil {
+			return err
+		}
+	default:
+	}
+
+	go func() {
+		for {
+			select {
+			case <-c.config.clock.After(c.config.checkDeregisterTimeout):
+				onDisconnect(ErrNoConsulHealthCheck)
+
+			case err, ok := <-ping:
+				if !ok {
+					return
+				}
+
+				if err != nil {
+					onDisconnect(err)
+				}
+			}
+		}
+	}()
 
 	return c.api.Register(&consul.AgentServiceRegistration{
 		ID:      service.ID,
@@ -113,11 +156,11 @@ func (c *consulClient) Register(service *Service) error {
 		Port:    service.Port,
 		Tags:    []string{string(service.serializeAttributes())},
 		Check: &consul.AgentServiceCheck{
-			HTTP:                           endpoint,
+			HTTP:                           c.checkServer.addr,
 			Status:                         "passing",
-			Timeout:                        c.config.checkTimeout,
-			Interval:                       c.config.checkInterval,
-			DeregisterCriticalServiceAfter: c.config.checkDeregisterTimeout,
+			Timeout:                        fmt.Sprintf("%#v", c.config.checkTimeout),
+			Interval:                       fmt.Sprintf("%#v", c.config.checkInterval),
+			DeregisterCriticalServiceAfter: fmt.Sprintf("%#v", c.config.checkDeregisterTimeout),
 		},
 	})
 }
@@ -199,46 +242,4 @@ func mapConsulServices(services []*consul.CatalogService, name string) []*Servic
 	}
 
 	return sortServiceMap(serviceMap)
-}
-
-func makeCheckEndpoint(host, endpoint string, logger Logger) (string, error) {
-	if endpoint != "" {
-		return endpoint, nil
-	}
-
-	if host == "" {
-		return "", ErrIllegalHost
-	}
-
-	return makeCheckServer(host, logger)
-}
-
-func makeCheckServer(host string, logger Logger) (string, error) {
-	listener, err := net.Listen("tcp", "0.0.0.0:0")
-	if err != nil {
-		return "", err
-	}
-
-	port := listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://%s:%d/health", host, port)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", makeCheckHTTPFunc(logger))
-
-	go func() {
-		logger.Printf("Running health check at %s\n", addr)
-		http.Serve(listener, mux)
-	}()
-
-	return addr, nil
-}
-
-func makeCheckHTTPFunc(logger Logger) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Printf("Consul performing health check\n")
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"alive": true}`))
-	}
 }
