@@ -158,9 +158,9 @@ func (c *consulClient) Register(service *Service, onDisconnect func(error)) erro
 		Check: &consul.AgentServiceCheck{
 			HTTP:                           c.checkServer.addr,
 			Status:                         "passing",
-			Timeout:                        fmt.Sprintf("%#v", c.config.checkTimeout),
-			Interval:                       fmt.Sprintf("%#v", c.config.checkInterval),
-			DeregisterCriticalServiceAfter: fmt.Sprintf("%#v", c.config.checkDeregisterTimeout),
+			Timeout:                        fmt.Sprintf("%s", c.config.checkTimeout),
+			Interval:                       fmt.Sprintf("%s", c.config.checkInterval),
+			DeregisterCriticalServiceAfter: fmt.Sprintf("%s", c.config.checkDeregisterTimeout),
 		},
 	})
 }
