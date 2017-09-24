@@ -8,7 +8,13 @@ import (
 
 type (
 	Elector interface {
+		// Elect will begin an election. The current process is put into
+		// the pool of candidates and then waits until the current leader
+		// (if one exists) disconnects from the cluster. This method will
+		// block until the current process has been elected.
 		Elect() error
+
+		// Cancel the election and unblock the Elect function.
 		Cancel()
 	}
 
@@ -20,11 +26,16 @@ type (
 		onDisconnect func(error)
 	}
 
+	// ElectorConfigFunc is provided to NewElector to change the default
+	// elector parameters.
 	ElectorConfigFunc func(*elector)
 )
 
+// ErrElectionCanceled occurs when an election is concurrently cancelled.
 var ErrElectionCanceled = errors.New("election canceled")
 
+// NewElector create an elector for the service using the given name and
+// backing client.
 func NewElector(client Client, name string, configs ...ElectorConfigFunc) Elector {
 	elector := &elector{
 		client: client,
@@ -39,10 +50,14 @@ func NewElector(client Client, name string, configs ...ElectorConfigFunc) Electo
 	return elector
 }
 
+// WithAttributes sets the attributes of the instance participating in the
+// election.
 func WithAttributes(attributes Attributes) ElectorConfigFunc {
 	return func(e *elector) { e.attributes = attributes }
 }
 
+// WithDisconnectionCallback sets the callback function which is invoked if
+// the backing client disconnects after the election has unblocke.d
 func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
 	return func(e *elector) { e.onDisconnect = onDisconnect }
 }

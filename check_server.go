@@ -21,6 +21,7 @@ type checkServer struct {
 	clock     glock.Clock
 }
 
+// ErrZkDisconnect occurs when a health check server is created with an illegal host value.
 var ErrIllegalHost = errors.New("illegal host")
 
 func newCheckServer(host string, port int, logger Logger, clock glock.Clock) *checkServer {
