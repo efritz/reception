@@ -9,7 +9,10 @@ import (
 )
 
 var (
-	ErrBadResponse     = errors.New("could not decode exhibitor response")
+	// ErrBadResponse occurs when exhibitor returns an unparseable response.
+	ErrBadResponse = errors.New("could not decode exhibitor response")
+
+	// ErrEmptyServerList occurs when exhibitor lists no available nodes.
 	ErrEmptyServerList = errors.New("exhibitor is alive but returned no servers")
 )
 
