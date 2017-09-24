@@ -35,11 +35,16 @@ type (
 		clock                  glock.Clock
 	}
 
+	// ConsulConfigFunc is provided to DialEtcd to change the default
+	// client parameters.
 	ConsulConfigFunc func(*consulConfig)
 )
 
+// ErrNoConsulHealthCheck occurs when Consul has not contacted the health
+// endpoint of a registered service for a duration (its deregister timeout).
 var ErrNoConsulHealthCheck = errors.New("consul has not pinged in disconnect timeout")
 
+// DialConsul creates a new Client by connecting to a Consul node.
 func DialConsul(addr string, configs ...ConsulConfigFunc) (Client, error) {
 	client, err := consul.NewClient(&consul.Config{Address: addr})
 	if err != nil {
@@ -85,26 +90,37 @@ func newConsulClient(api consulAPI, configs ...ConsulConfigFunc) Client {
 	}
 }
 
+// WithHost sets the host of the current process. This must be set before calling
+// the Register function, otherwise the proper address (resolvable outside of the
+// current machine) cannot be given to Consul for health check information.
 func WithHost(host string) ConsulConfigFunc {
 	return func(c *consulConfig) { c.host = host }
 }
 
+// WithPort sets the port on which the health check server should listen. By default,
+// this will be a dynamically bound port (any free port on the machine).
 func WithPort(port int) ConsulConfigFunc {
 	return func(c *consulConfig) { c.port = port }
 }
 
+// WithCheckTimeout sets Consul's TTL for health checks to this process.
 func WithCheckTimeout(timeout time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkTimeout = timeout }
 }
 
+// WithCheckInterval sets Consul's interval for health checks to this process.
 func WithCheckInterval(timeout time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkInterval = timeout }
 }
 
+// WithCheckDeregisterTimeout sets the timeout after whihc Consul will consider the
+// process unhealthy.
 func WithCheckDeregisterTimeout(timeout time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkDeregisterTimeout = timeout }
 }
 
+// WithLogger sets the logger sets the logger which will print the access logs of the
+// health check server.
 func WithLogger(logger Logger) ConsulConfigFunc {
 	return func(c *consulConfig) { c.logger = logger }
 }

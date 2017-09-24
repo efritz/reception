@@ -28,9 +28,12 @@ type (
 		clock           glock.Clock
 	}
 
+	// EtcdConfigFunc is provided to DialEtcd to change the default
+	// client parameters.
 	EtcdConfigFunc func(*etcdConfig)
 )
 
+// DialEtcd will create a new Client by connecting to an Etcd node.
 func DialEtcd(addr string, configs ...EtcdConfigFunc) (Client, error) {
 	client, err := etcd.New(etcd.Config{
 		Endpoints:               []string{addr},
@@ -63,14 +66,17 @@ func newEtcdClient(api keysAPI, configs ...EtcdConfigFunc) Client {
 	}
 }
 
+// WithEtcdPrefix sets the prefix of all registered services.
 func WithEtcdPrefix(prefix string) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.prefix = prefix }
 }
 
+// WithTTL sets the time that a registered service can live without an update.
 func WithTTL(ttl time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.ttl = ttl }
 }
 
+// WithRefreshInterval sets the interval on which service nodes are refreshed.
 func WithRefreshInterval(refreshInterval time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.refreshInterval = refreshInterval }
 }

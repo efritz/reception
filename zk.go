@@ -37,18 +37,22 @@ type (
 		prefix string
 	}
 
+	// ZkConfigFunc is provided to DialExhibitor and DialZk to change the default
+	// client parameters.
 	ZkConfigFunc func(*zkConfig)
 )
+
+// ErrZkDisconnect occurs when the session to Zookeeper has been disconnected.
+var ErrZkDisconnect = errors.New("zk session has been disconnected")
 
 // _c_24fc775f3171da36dae47369165c78d4-7fe38486-0488-4335-8fcc-a456108ff6d0_0000000002
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^|....................................|^^^^^^^^^^
 //           Zookeeper Prefix         |              Server ID             |  Seq No
 
-var (
-	ErrZkDisconnect    = errors.New("zk session has been disconnected")
-	servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
-)
+var servicePathPattern = regexp.MustCompile(`^_c_[A-Za-z0-9]{32}-.+-\d{10}$`)
 
+// DialExhibitor will create a new Client by choosing a random server from the Exhibitor
+// server list. See DialZk for additional details.
 func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
 	zkAddr, err := chooseRandomServer(addr)
 	if err != nil {
@@ -58,6 +62,8 @@ func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
 	return DialZk(zkAddr, configs...)
 }
 
+// DialZk will creat ea new Client by connecting directly to a Zookeeper node. This method
+// will block while the Zookeeper session becomes connected.
 func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
 	conn, events, err := zk.Connect([]string{addr}, time.Second)
 	if err != nil {
@@ -102,6 +108,8 @@ func newZkClient(conn zkConn, events <-chan zk.Event, configs ...ZkConfigFunc) C
 	return client
 }
 
+// WithZkPrefix will change the root path in which znodes are created and queried.
+// This allows isolation between different programs using the same Zookeeper cluster.
 func WithZkPrefix(prefix string) ZkConfigFunc {
 	return func(c *zkConfig) { c.prefix = prefix }
 }
