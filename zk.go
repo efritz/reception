@@ -146,6 +146,10 @@ func (c *zkClient) ListServices(name string) ([]*Service, error) {
 	for {
 		paths, err := c.conn.Children(makePath(c.config.prefix, name))
 		if err != nil {
+			if err == zk.ErrNoNode {
+				return nil, nil
+			}
+
 			return nil, err
 		}
 

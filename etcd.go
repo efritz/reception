@@ -121,6 +121,10 @@ func (c *etcdClient) Register(service *Service, onDisconnect func(error)) error 
 func (c *etcdClient) ListServices(name string) ([]*Service, error) {
 	resp, err := c.api.Get(makePath(c.config.prefix, name))
 	if err != nil {
+		if etcd.IsKeyNotFound(err) {
+			return nil, nil
+		}
+
 		return nil, err
 	}
 
