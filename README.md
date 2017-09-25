@@ -31,7 +31,7 @@ client, err := DialConsul(
 )
 ```
 
-### Regirstration
+### Registration
 
 Given a client, the current process can register itself as an instance of a service.
 In the following, an API instance registers itself with a unique identifier, a means
