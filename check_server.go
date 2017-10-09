@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/efritz/glock"
 )
@@ -15,9 +16,9 @@ type checkServer struct {
 	addr      string
 	listeners []chan error
 	err       error
-	mutex.Mutex
-	logger Logger
-	clock  glock.Clock
+	mutex     sync.Mutex
+	logger    Logger
+	clock     glock.Clock
 }
 
 // ErrZkDisconnect occurs when a health check server is created with an illegal host value.
