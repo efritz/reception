@@ -17,7 +17,7 @@ type (
 		conn      zkConn
 		state     zk.State
 		listeners []chan struct{}
-		mutex     *sync.Mutex
+		mutex     sync.Mutex
 		config    *zkConfig
 	}
 
@@ -84,7 +84,6 @@ func newZkClient(conn zkConn, events <-chan zk.Event, configs ...ZkConfigFunc) C
 		conn:      conn,
 		state:     zk.StateConnected,
 		listeners: []chan struct{}{},
-		mutex:     &sync.Mutex{},
 		config:    config,
 	}
 

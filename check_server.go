@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 
 	"github.com/efritz/glock"
 )
@@ -16,9 +15,9 @@ type checkServer struct {
 	addr      string
 	listeners []chan error
 	err       error
-	mutex     *sync.Mutex
-	logger    Logger
-	clock     glock.Clock
+	mutex.Mutex
+	logger Logger
+	clock  glock.Clock
 }
 
 // ErrZkDisconnect occurs when a health check server is created with an illegal host value.
@@ -29,7 +28,6 @@ func newCheckServer(host string, port int, logger Logger, clock glock.Clock) *ch
 		host:      host,
 		port:      port,
 		listeners: []chan error{},
-		mutex:     &sync.Mutex{},
 		logger:    logger,
 		clock:     clock,
 	}
