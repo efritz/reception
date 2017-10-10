@@ -371,3 +371,10 @@ func (c *mockConsulAPI) List(name string) ([]*consul.CatalogService, error) {
 func (c *mockConsulAPI) Watch(name string, index uint64, ctx context.Context) ([]*consul.CatalogService, uint64, error) {
 	return c.watch(name, index, ctx)
 }
+
+//
+// Helpers
+
+func withConsulClock(clock glock.Clock) ConsulConfigFunc {
+	return func(c *consulConfig) { c.clock = clock }
+}

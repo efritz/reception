@@ -124,10 +124,6 @@ func WithLogger(logger Logger) ConsulConfigFunc {
 	return func(c *consulConfig) { c.logger = logger }
 }
 
-func withConsulClock(clock glock.Clock) ConsulConfigFunc {
-	return func(c *consulConfig) { c.clock = clock }
-}
-
 //
 // Client
 

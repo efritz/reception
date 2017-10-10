@@ -28,11 +28,6 @@ type (
 		stop   chan struct{}
 	}
 
-	stateUpdater struct {
-		current zk.State
-		states  <-chan zk.State
-	}
-
 	zkConfig struct {
 		prefix string
 	}

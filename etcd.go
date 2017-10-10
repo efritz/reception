@@ -81,10 +81,6 @@ func WithRefreshInterval(refreshInterval time.Duration) EtcdConfigFunc {
 	return func(c *etcdConfig) { c.refreshInterval = refreshInterval }
 }
 
-func withEtcdClock(clock glock.Clock) EtcdConfigFunc {
-	return func(c *etcdConfig) { c.clock = clock }
-}
-
 //
 // Client
 
@@ -219,11 +215,8 @@ func makeEtcdEventChannel(api keysAPI, path string, stop <-chan struct{}) <-chan
 
 		for {
 			again, err := withContext(stop, func(ctx context.Context) error {
-				if _, err := watcher.Next(ctx); err != nil {
-					return err
-				}
-
-				return nil
+				_, err := watcher.Next(ctx)
+				return err
 			})
 
 			if err != nil {

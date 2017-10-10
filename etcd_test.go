@@ -406,6 +406,10 @@ func (w *mockEtcdWatcher) Next(ctx context.Context) (*etcd.Response, error) {
 //
 // Helpers
 
+func withEtcdClock(clock glock.Clock) EtcdConfigFunc {
+	return func(c *etcdConfig) { c.clock = clock }
+}
+
 func makeResponse(nodes []*etcd.Node) *etcd.Response {
 	return &etcd.Response{Node: &etcd.Node{Nodes: nodes}}
 }
