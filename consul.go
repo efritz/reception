@@ -113,7 +113,7 @@ func WithCheckInterval(timeout time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkInterval = timeout }
 }
 
-// WithCheckDeregisterTimeout sets the timeout after whihc Consul will consider the
+// WithCheckDeregisterTimeout sets the timeout after which Consul will consider the
 // process unhealthy.
 func WithCheckDeregisterTimeout(timeout time.Duration) ConsulConfigFunc {
 	return func(c *consulConfig) { c.checkDeregisterTimeout = timeout }
