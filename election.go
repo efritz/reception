@@ -63,8 +63,12 @@ func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
 }
 
 func (e *elector) Elect() error {
+	id, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
 	service := &Service{
-		ID:         uuid.NewV4().String(),
+		ID:         id.String(),
 		Name:       e.name,
 		Attributes: e.attributes,
 	}
