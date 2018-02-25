@@ -45,7 +45,12 @@ func DialEtcd(addr string, configs ...EtcdConfigFunc) (Client, error) {
 		return nil, err
 	}
 
-	return newEtcdClient(&etcdShim{etcd.NewKeysAPI(client)}), nil
+	return NewEtcdClient(client, configs...), nil
+}
+
+// NewEtcdClient creates a new Client from an existing Etcd connection.
+func NewEtcdClient(client etcd.Client, configs ...EtcdConfigFunc) Client {
+	return newEtcdClient(&etcdShim{etcd.NewKeysAPI(client)})
 }
 
 func newEtcdClient(api keysAPI, configs ...EtcdConfigFunc) Client {

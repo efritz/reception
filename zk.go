@@ -65,7 +65,12 @@ func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
 		return nil, err
 	}
 
-	return newZkClient(&zkShim{conn}, events, configs...), nil
+	return NewZkClient(conn, events, configs...), nil
+}
+
+// NewZkClient creates a new Client from an existing Zookeeper connection.
+func NewZkClient(conn *zk.Conn, events <-chan zk.Event, configs ...ZkConfigFunc) Client {
+	return newZkClient(&zkShim{conn}, events, configs...)
 }
 
 func newZkClient(conn zkConn, events <-chan zk.Event, configs ...ZkConfigFunc) Client {

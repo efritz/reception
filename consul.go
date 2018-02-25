@@ -50,12 +50,17 @@ func DialConsul(addr string, configs ...ConsulConfigFunc) (Client, error) {
 		return nil, err
 	}
 
+	return NewConsulClient(client, configs...), nil
+}
+
+// NewConsulClient creates a new Client from an existing Consul connection.
+func NewConsulClient(client *consul.Client, configs ...ConsulConfigFunc) Client {
 	shim := &consulShim{
 		agent:   client.Agent(),
 		catalog: client.Catalog(),
 	}
 
-	return newConsulClient(shim, configs...), nil
+	return newConsulClient(shim, configs...)
 }
 
 func newConsulClient(api consulAPI, configs ...ConsulConfigFunc) Client {
