@@ -55,7 +55,7 @@ func (s *checkServer) start() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handler)
 
-	s.logger.Printf("Running health check at %s\n", s.addr)
+	s.logger.Printf("Running health check at %s", s.addr)
 
 	go func() {
 		s.signal(http.Serve(listener, mux))
@@ -63,7 +63,7 @@ func (s *checkServer) start() {
 }
 
 func (s *checkServer) handler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Printf("Consul performing health check\n")
+	s.logger.Printf("Consul performing health check")
 
 	s.signal(nil)
 	w.Header().Set("Content-Type", "application/json")
