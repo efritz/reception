@@ -2,6 +2,8 @@ package reception
 
 import (
 	"encoding/json"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 type (
@@ -55,6 +57,24 @@ type (
 	// Attributes are additional metadata about a service.
 	Attributes map[string]string
 )
+
+// MakeService will instantiate a Service instance with a random ID.
+func MakeService(name, address string, port int, attributes Attributes) (*Service, error) {
+	id, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	service := &Service{
+		ID:         id.String(),
+		Name:       name,
+		Address:    address,
+		Port:       port,
+		Attributes: attributes,
+	}
+
+	return service, nil
+}
 
 func (s *Service) serializeMetadata() []byte {
 	data, _ := json.Marshal(s)

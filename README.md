@@ -39,17 +39,22 @@ of accessing it (host and port pair), and a set of attributes which may be usefu
 other instances of the service.
 
 ```go
-service := &Service{
-    uuid.NewV4().String(),      // instance id
+service, err := MakeService(
     "api",                      // service name
     "mesos-agent1.example.com", // host
     23423,                      // port
     map[string]string{          // attributes
         "external": "true",
     },
+)
+
+if err != nil {
+    //
 }
 
-err := client.Register(service, onDisconnect)
+if err := client.Register(service, onDisconnect); err != nil {
+    //
+}
 ```
 
 The on-disconnect function is called whenever the connection to the backing service
