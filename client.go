@@ -59,21 +59,34 @@ type (
 )
 
 // MakeService will instantiate a Service instance with a random ID.
-func MakeService(name, address string, port int, attributes Attributes) (*Service, error) {
-	id, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
+func MakeService(name, addr string, port int, attributes Attributes) (*Service, error) {
+	return makeService("", name, addr, port, attributes)
+
+}
+
+func makeService(id, name, addr string, port int, attributes Attributes) (service *Service, err error) {
+	if id == "" {
+		id, err = makeID()
 	}
 
-	service := &Service{
-		ID:         id.String(),
+	service = &Service{
+		ID:         id,
 		Name:       name,
-		Address:    address,
+		Address:    addr,
 		Port:       port,
 		Attributes: attributes,
 	}
 
-	return service, nil
+	return
+}
+
+func makeID() (string, error) {
+	id, err := uuid.NewV4()
+	if err != nil {
+		return "", err
+	}
+
+	return id.String(), nil
 }
 
 func (s *Service) serializeMetadata() []byte {

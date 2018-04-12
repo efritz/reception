@@ -24,6 +24,7 @@ type (
 
 	elector struct {
 		client       Client
+		serviceID    string
 		name         string
 		host         string
 		port         int
@@ -55,6 +56,12 @@ func NewElector(client Client, name string, configs ...ElectorConfigFunc) Electo
 	}
 
 	return elector
+}
+
+// WithServiceID sets the service ID of the instance participating in the
+// election. If one is not set, then one is randomly generated.
+func WithServiceID(serviceID string) ElectorConfigFunc {
+	return func(e *elector) { e.serviceID = serviceID }
 }
 
 // WithAttributes sets the attributes of the instance participating in the
