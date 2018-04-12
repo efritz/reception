@@ -123,7 +123,7 @@ elector := NewElector(
     WithDisconnectionCallback(onDisconnect),
 )
 
-if err := elector.Elect(); err != nil {
+if err := elector.Elect(); err == nil {
     fmt.Printf("I'm the leader!\n")
 }
 ```

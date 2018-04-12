@@ -57,7 +57,7 @@ func WithAttributes(attributes Attributes) ElectorConfigFunc {
 }
 
 // WithDisconnectionCallback sets the callback function which is invoked if
-// the backing client disconnects after the election has unblocke.d
+// the backing client disconnects after the election has unblocked.
 func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
 	return func(e *elector) { e.onDisconnect = onDisconnect }
 }
