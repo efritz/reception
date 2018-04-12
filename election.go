@@ -2,8 +2,6 @@ package reception
 
 import (
 	"errors"
-
-	"github.com/satori/go.uuid"
 )
 
 type (
@@ -14,6 +12,12 @@ type (
 		// block until the current process has been elected.
 		Elect() error
 
+		// Leader will return the service that was elected in the most
+		// recent election. This method will only return nil until the
+		// goroutine in which Elect was called has received a response
+		// from the remote server.
+		Leader() *Service
+
 		// Cancel the election and unblock the Elect function.
 		Cancel()
 	}
@@ -21,9 +25,12 @@ type (
 	elector struct {
 		client       Client
 		name         string
-		stop         chan struct{}
+		host         string
+		port         int
 		attributes   Attributes
 		onDisconnect func(error)
+		leader       *Service
+		stop         chan struct{}
 	}
 
 	// ElectorConfigFunc is provided to NewElector to change the default
@@ -56,6 +63,15 @@ func WithAttributes(attributes Attributes) ElectorConfigFunc {
 	return func(e *elector) { e.attributes = attributes }
 }
 
+// WithHostAndPort sets the host and port of the instance participating in
+// the election.
+func WithHostAndPort(host string, port int) ElectorConfigFunc {
+	return func(e *elector) {
+		e.host = host
+		e.port = port
+	}
+}
+
 // WithDisconnectionCallback sets the callback function which is invoked if
 // the backing client disconnects after the election has unblocked.
 func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
@@ -63,14 +79,9 @@ func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
 }
 
 func (e *elector) Elect() error {
-	id, err := uuid.NewV4()
+	service, err := MakeService(e.name, e.host, e.port, e.attributes)
 	if err != nil {
 		return err
-	}
-	service := &Service{
-		ID:         id.String(),
-		Name:       e.name,
-		Attributes: e.attributes,
 	}
 
 	if err := e.client.Register(service, e.onDisconnect); err != nil {
@@ -78,6 +89,7 @@ func (e *elector) Elect() error {
 	}
 
 	watcher := e.client.NewWatcher(e.name)
+
 	ch, err := watcher.Start()
 	if err != nil {
 		return err
@@ -96,8 +108,14 @@ loop:
 				return state.Err
 			}
 
-			if len(state.Services) > 0 && state.Services[0].ID == service.ID {
-				break loop
+			if len(state.Services) > 0 {
+				// Update leader
+				e.leader = state.Services[0]
+
+				// Compare against current client
+				if e.leader.ID == service.ID {
+					break loop
+				}
 			}
 		}
 	}
@@ -108,6 +126,10 @@ loop:
 	}()
 
 	return nil
+}
+
+func (e *elector) Leader() *Service {
+	return e.leader
 }
 
 func (e *elector) Cancel() {

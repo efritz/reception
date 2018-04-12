@@ -128,13 +128,23 @@ elector := NewElector(
     WithDisconnectionCallback(onDisconnect),
 )
 
+go func() {
+    for {
+        fmt.Printf("current leader is %#v\n", elector.Leader())
+        <-time.After(time.Second)
+    }()
+}()
+
 if err := elector.Elect(); err == nil {
     fmt.Printf("I'm the leader!\n")
 }
 ```
 
 A process can withdraw itself from the election process by calling the elector's
-`Cancel` method from another goroutine.
+`Cancel` method from another goroutine. The current leader's service data can be
+retrieved with the `Leader` method. This will only return a useful value once the
+election has been started (not before the initial remote response from the call to
+`Elect`).
 
 ## License
 

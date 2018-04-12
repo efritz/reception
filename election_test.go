@@ -47,11 +47,17 @@ func (s *ElectionSuite) TestElect(t sweet.T) {
 	serviceChan <- &ServiceState{}
 	Consistently(errChan).ShouldNot(Receive())
 
-	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: "wrong id"}}}
+	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: "not there"}}}
 	Consistently(errChan).ShouldNot(Receive())
+	Eventually(func() bool { return elector.Leader().ID == "not there" }).Should(BeTrue())
+
+	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: "not first"}, &Service{ID: registeredService.ID}}}
+	Consistently(errChan).ShouldNot(Receive())
+	Eventually(func() bool { return elector.Leader().ID == "not first" }).Should(BeTrue())
 
 	serviceChan <- &ServiceState{Services: []*Service{&Service{ID: registeredService.ID}}}
 	Eventually(errChan).Should(Receive(BeNil()))
+	Eventually(func() bool { return elector.Leader().ID == registeredService.ID }).Should(BeTrue())
 
 	Expect(stopCalled).To(BeTrue())
 	Expect(registeredService.Name).To(Equal("service"))
