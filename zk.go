@@ -57,7 +57,7 @@ func DialExhibitor(addr string, configs ...ZkConfigFunc) (Client, error) {
 	return DialZk(zkAddr, configs...)
 }
 
-// DialZk will creat ea new Client by connecting directly to a Zookeeper node. This method
+// DialZk will create a new Client by connecting directly to a Zookeeper node. This method
 // will block while the Zookeeper session becomes connected.
 func DialZk(addr string, configs ...ZkConfigFunc) (Client, error) {
 	conn, events, err := zk.Connect([]string{addr}, time.Second)
