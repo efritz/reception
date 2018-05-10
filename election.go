@@ -86,7 +86,7 @@ func WithDisconnectionCallback(onDisconnect func(error)) ElectorConfigFunc {
 }
 
 func (e *elector) Elect() error {
-	service, err := MakeService(e.name, e.host, e.port, e.attributes)
+	service, err := makeService(e.serviceID, e.name, e.host, e.port, e.attributes)
 	if err != nil {
 		return err
 	}
