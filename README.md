@@ -2,7 +2,8 @@
 
 [![GoDoc](https://godoc.org/github.com/efritz/reception?status.svg)](https://godoc.org/github.com/efritz/reception)
 [![Build Status](https://secure.travis-ci.org/efritz/reception.png)](http://travis-ci.org/efritz/reception)
-[![codecov.io](http://codecov.io/github/efritz/reception/coverage.svg?branch=master)](http://codecov.io/github/efritz/reception?branch=master)
+[![Maintainability](https://api.codeclimate.com/v1/badges/d634e39bc505e26880f6/maintainability)](https://codeclimate.com/github/efritz/reception/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/d634e39bc505e26880f6/test_coverage)](https://codeclimate.com/github/efritz/reception/test_coverage)
 
 Service discovery and cluster state reporter for Go services.
 
