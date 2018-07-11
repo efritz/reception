@@ -3,7 +3,7 @@ package reception
 import (
 	"encoding/json"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 type (
@@ -81,7 +81,7 @@ func makeService(id, name, addr string, port int, attributes Attributes) (servic
 }
 
 func makeID() (string, error) {
-	id, err := uuid.NewV4()
+	id, err := uuid.NewRandom()
 	if err != nil {
 		return "", err
 	}
